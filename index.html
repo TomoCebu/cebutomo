@@ -316,7 +316,8 @@ function pickMime(){
   return '';
 }
 async function ensureStream(){
-  if(mediaStream) return mediaStream;
+  // 毎回マイク音声を取り直す（再生やAudioContext再構築で無音化した古いストリームを引きずらない）
+  try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); } }catch(e){}
   mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});
   return mediaStream;
 }
