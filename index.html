@@ -459,11 +459,24 @@ function downsampleTo16k(input,inRate){
   return out;
 }
 function floatTo16(f){ const b=new Int16Array(f.length); for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); b[i]=s<0?s*0x8000:s*0x7FFF; } return b; }
-function teardownPipe(){
+// AudioContextは使い回す（作り直さない）。録音開始のたびに resume する。
+async function ensureAudioGraph(stream){
+  if(!audioCtx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    audioCtx=new AC();
+    audioSrc=audioCtx.createMediaStreamSource(stream);
+    audioProc=audioCtx.createScriptProcessor(4096,1,1);
+    const mute=audioCtx.createGain(); mute.gain.value=0;
+    audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
+    audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0), audioCtx.sampleRate)).buffer); }catch(_){} };
+  }
+  try{ await audioCtx.resume(); }catch(e){}   // 再生後に suspended になっても復帰させる
+}
+function resetAudioGraph(){
   try{ if(audioProc){ audioProc.onaudioprocess=null; audioProc.disconnect(); } }catch(e){} audioProc=null;
   try{ if(audioSrc) audioSrc.disconnect(); }catch(e){} audioSrc=null;
-  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;
   try{ if(audioCtx) audioCtx.close(); }catch(e){} audioCtx=null;
+  azurePush=null;
 }
 async function startAzureLive(){
   const SDK=window.SpeechSDK;
@@ -478,14 +491,7 @@ async function startAzureLive(){
   const fmt=SDK.AudioStreamFormat.getWaveFormatPCM(16000,16,1);
   azurePush=SDK.AudioInputStream.createPushStream(fmt);
   const audioConfig=SDK.AudioConfig.fromStreamInput(azurePush);
-  const AC=window.AudioContext||window.webkitAudioContext;
-  audioCtx=new AC();
-  audioSrc=audioCtx.createMediaStreamSource(stream);
-  audioProc=audioCtx.createScriptProcessor(4096,1,1);
-  const mute=audioCtx.createGain(); mute.gain.value=0;
-  audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
-  const inRate=audioCtx.sampleRate;
-  audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0),inRate)).buffer); }catch(_){} };
+  await ensureAudioGraph(stream);
   // 再生用の録音
   lastAudioUrl=null;
   try{ pbChunks=[]; const m=pickMime(); pbRecorder=new MediaRecorder(stream, m?{mimeType:m}:undefined);
@@ -516,7 +522,7 @@ async function startAzureLive(){
 function stopAzureLive(discard){
   if(!azureReco){ recState='idle'; return; }
   recState='transcribing';
-  teardownPipe();
+  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;   // 音声グラフは残す（AudioContextは使い回す）
   if(pbRecorder){
     pbRecorder.onstop=()=>{ if(!discard && pbChunks.length){ try{ lastAudioUrl=URL.createObjectURL(new Blob(pbChunks,{type:(pbRecorder&&pbRecorder.mimeType)||'audio/webm'})); }catch(e){} } };
     try{ pbRecorder.stop(); }catch(e){} pbRecorder=null;
@@ -770,7 +776,7 @@ async function submitAnswer(ans, pa, audioUrl){
 }
 $('sendBtn').onclick=()=>submitAnswer($('answer').value);
 
-function releaseMic(){ try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
+function releaseMic(){ resetAudioGraph(); try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
 $('endBtn').onclick=()=>endWithSummary();
 
 // 会話の録音を止める（Azure/録音どちらでも）
