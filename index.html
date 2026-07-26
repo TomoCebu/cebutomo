@@ -459,24 +459,12 @@ function downsampleTo16k(input,inRate){
   return out;
 }
 function floatTo16(f){ const b=new Int16Array(f.length); for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); b[i]=s<0?s*0x8000:s*0x7FFF; } return b; }
-// AudioContextは使い回す（作り直さない）。録音開始のたびに resume する。
-async function ensureAudioGraph(stream){
-  if(!audioCtx){
-    const AC=window.AudioContext||window.webkitAudioContext;
-    audioCtx=new AC();
-    audioSrc=audioCtx.createMediaStreamSource(stream);
-    audioProc=audioCtx.createScriptProcessor(4096,1,1);
-    const mute=audioCtx.createGain(); mute.gain.value=0;
-    audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
-    audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0), audioCtx.sampleRate)).buffer); }catch(_){} };
-  }
-  try{ await audioCtx.resume(); }catch(e){}   // 再生後に suspended になっても復帰させる
-}
+// 音声グラフは毎回クリーンに作り直す（持ち越さない）
 function resetAudioGraph(){
   try{ if(audioProc){ audioProc.onaudioprocess=null; audioProc.disconnect(); } }catch(e){} audioProc=null;
   try{ if(audioSrc) audioSrc.disconnect(); }catch(e){} audioSrc=null;
+  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;
   try{ if(audioCtx) audioCtx.close(); }catch(e){} audioCtx=null;
-  azurePush=null;
 }
 async function startAzureLive(){
   const SDK=window.SpeechSDK;
@@ -488,10 +476,19 @@ async function startAzureLive(){
   catch(e){ setLive('<span class="ph">Azure設定エラー: '+escapeHtml(e.message)+'</span>'); return; }
   cfg.speechRecognitionLanguage='en-US';
   // 1本のマイク音声を、Azure(認識)と録音(再生用)で共有する
+  resetAudioGraph();                    // 前回分を確実に掃除してから作り直す
   const fmt=SDK.AudioStreamFormat.getWaveFormatPCM(16000,16,1);
   azurePush=SDK.AudioInputStream.createPushStream(fmt);
   const audioConfig=SDK.AudioConfig.fromStreamInput(azurePush);
-  await ensureAudioGraph(stream);
+  const AC=window.AudioContext||window.webkitAudioContext;
+  audioCtx=new AC();
+  try{ await audioCtx.resume(); }catch(e){}   // 再生後に suspended でも確実に起動
+  audioSrc=audioCtx.createMediaStreamSource(stream);
+  audioProc=audioCtx.createScriptProcessor(4096,1,1);
+  const mute=audioCtx.createGain(); mute.gain.value=0;
+  audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
+  const inRate=audioCtx.sampleRate;
+  audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0),inRate)).buffer); }catch(_){} };
   // 再生用の録音
   lastAudioUrl=null;
   try{ pbChunks=[]; const m=pickMime(); pbRecorder=new MediaRecorder(stream, m?{mimeType:m}:undefined);
@@ -522,7 +519,7 @@ async function startAzureLive(){
 function stopAzureLive(discard){
   if(!azureReco){ recState='idle'; return; }
   recState='transcribing';
-  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;   // 音声グラフは残す（AudioContextは使い回す）
+  resetAudioGraph();   // 音声グラフを掃除（pushを閉じてAzureに終端を伝える）
   if(pbRecorder){
     pbRecorder.onstop=()=>{ if(!discard && pbChunks.length){ try{ lastAudioUrl=URL.createObjectURL(new Blob(pbChunks,{type:(pbRecorder&&pbRecorder.mimeType)||'audio/webm'})); }catch(e){} } };
     try{ pbRecorder.stop(); }catch(e){} pbRecorder=null;
