@@ -214,6 +214,10 @@
         </div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk"> 認識結果を確認してから送る（誤認識を防ぐ）</label>
         <div class="hint">💾 キーはアプリに埋め込み済みで、変更した場合のみ各端末のブラウザ内に保存されます。</div>
+        <div style="margin-top:14px">
+          <button class="btn-ghost btn-sm" id="voiceListBtn" type="button">🔊 この端末で使える音声を見る</button>
+          <div id="voiceList" style="margin-top:8px"></div>
+        </div>
       </div>
     </details>
   </div>
@@ -290,7 +294,7 @@ const SYSTEM = `あなたは日本人の英語学習者のための「旅行英�
 【重要】ユーザーの入力は英語の発話を音声認識で文字起こししたテキストです。不完全・崩れている・一部日本語でも、決して「英語で話してください」等と会話を止めないこと。最も近い意図を推測し、相手役として自然に会話を続ける。
 【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。
 【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。
-【呼びかけ】ユーザー（学習者）は50歳前後の男性です。相手役がユーザーに呼びかける時は "Sir" を用い、"Ma'am" や "Miss" は絶対に使わないこと。
+【呼びかけ】ユーザー（学習者）は50歳前後の男性です。"Ma'am" や "Miss" は絶対に使わないこと。"Sir" は、店員・ホテル・空港・タクシーなど接客やフォーマルな場面で丁寧に呼びかける必要がある時だけ、毎回連呼せず自然な頻度で使う。友達との雑談などカジュアルな場面では "Sir" を使わず、名前で呼ぶか呼びかけ無しで対等に話すこと。
 【両替レートの目安（2026年7月時点の実勢）】両替やレートの話題になったら、次を目安に現実的な数字で答えること：1 USD ≈ 約61〜62 PHP、1,000 JPY ≈ 約375〜380 PHP（1 PHP ≈ 約2.6〜2.7円）。ホテルでの両替は実勢よりやや悪いレート（数%低い）になるのが自然。`;
 
 // ===== セッションごとのバリエーション（セブの実在スポット＋相手のキャラ変化） =====
@@ -373,6 +377,22 @@ let curQ = null;              // ユーザーが今答えている「設問」�
 })();
 $('confirmChk').addEventListener('change',e=>localStorage.setItem('te_confirm',e.target.checked?'1':'0'));
 function confirmOn(){ return $('confirmChk') && $('confirmChk').checked; }
+// この端末で使える音声の一覧＋試聴（設定内）
+$('voiceListBtn').onclick=()=>{
+  const vs=speechSynthesis.getVoices()||[];
+  const en=vs.filter(v=>/^en/i.test(v.lang));
+  const box=$('voiceList');
+  if(!en.length){ box.innerHTML='<div class="hint" style="margin-top:0">音声がまだ読み込まれていません。もう一度タップしてください。</div>'; return; }
+  box.innerHTML='<div class="hint" style="margin-top:0">英語 <b>'+en.length+'</b> 種類（この端末の全音声 '+vs.length+' 種類）。▶で試聴できます。</div>';
+  en.forEach(v=>{
+    const row=document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px'; row.style.margin='6px 0';
+    row.innerHTML='<div style="flex:1"><b style="font-size:14px">'+escapeHtml(v.name)+'</b> <span class="hint" style="display:inline;margin:0">'+escapeHtml(v.lang)+(v.default?' ・既定':'')+'</span></div>'+
+      '<button class="btn-ghost btn-sm" style="flex:0 0 auto">▶ 試聴</button>';
+    row.querySelector('button').onclick=()=>{ try{speechSynthesis.cancel();}catch(e){}
+      const u=new SpeechSynthesisUtterance('Hi! Welcome to Cebu. What can I get for you?'); u.voice=v; u.lang=v.lang; u.rate=0.95; speechSynthesis.speak(u); };
+    box.appendChild(row);
+  });
+};
 // 埋め込みキーで空欄を補完（localStorageに上書き保存があればそちら優先）
 (function embed(){
   if(!$('apiKey').value)      $('apiKey').value=_dk(_EMB.ANT);
