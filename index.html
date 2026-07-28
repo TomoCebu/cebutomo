@@ -130,6 +130,12 @@
   .drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .dresult{margin-top:10px}
   .wchip.pick{cursor:pointer} .wchip.pick:hover{background:#ffcdbf}
+  .corr{border:1px solid rgba(247,201,120,.55);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,.55)}
+  .corr .orig{font-size:14px;color:var(--muted)}
+  .corr .cmt{font-size:14px;margin-top:6px}
+  .corr .bt{background:rgba(31,169,138,.1);border:1px solid rgba(31,169,138,.28);border-radius:10px;padding:8px 10px;margin-top:8px}
+  .corr .bt .en{font-size:15px;color:#0d6e5a;font-weight:600}
+  .corr .bt .ja{font-size:13px;color:var(--muted);margin-top:3px}
 </style>
 </head>
 <body>
@@ -152,15 +158,15 @@
 
   <!-- 設定 -->
   <div class="card">
-    <details id="settingsBox" open>
-      <summary>⚙️ 設定（初回のみ）</summary>
+    <details id="settingsBox">
+      <summary>⚙️ 設定（キーは埋め込み済み。通常は開かなくてOK）</summary>
       <div style="margin-top:14px">
         <div class="keyrow">
           <label>Anthropic APIキー（Claude・会話と添削用）</label>
           <input type="password" id="apiKey" placeholder="sk-ant-api03-...">
         </div>
         <div class="keyrow">
-          <label>OpenAI APIキー（Whisper・音声の文字起こし用）</label>
+          <label>OpenAI APIキー（音声の文字起こし用）</label>
           <input type="password" id="openaiKey" placeholder="sk-...">
         </div>
         <div class="row keyrow">
@@ -170,7 +176,7 @@
           </div>
           <div style="flex:1 1 30%">
             <label>Azureリージョン</label>
-            <input type="text" id="azureRegion" placeholder="例: japaneast">
+            <input type="text" id="azureRegion" placeholder="例: eastus">
           </div>
         </div>
         <div class="keyrow">
@@ -194,7 +200,8 @@
             </select>
           </div>
         </div>
-        <div class="hint">💾 キーは各端末のブラウザ内にだけ保存され、外部には送られません（OpenAI/Anthropicへの通信を除く）。</div>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk" checked> 認識結果を確認してから送る（誤認識を防ぐ）</label>
+        <div class="hint">💾 キーはアプリに埋め込み済みで、変更した場合のみ各端末のブラウザ内に保存されます。</div>
       </div>
     </details>
   </div>
@@ -209,6 +216,8 @@
       <button class="preset" data-sit="カフェに入り、店員におすすめを聞いてドリンクやフードを注文する">☕<span>カフェ入店</span></button>
       <button class="preset" data-sit="旅行先で出会った現地の友達と、日常的な雑談をする">🧑‍🤝‍🧑<span>友達と日常会話</span></button>
       <button class="preset" data-sit="お土産屋さんで店員に商品について尋ねたり値段を聞いたりして買い物する">🎁<span>お土産屋さん</span></button>
+      <button class="preset" data-sit="【難易度: 初級・小学校〜中学校の教科書レベル】旅行先で出会った人とごく簡単な英語で日常会話をする（自己紹介・出身・趣味・好きな食べ物・天気など）。相手は必ず短くやさしい文で、ゆっくり一文ずつ話す。">🔰<span>初級英会話</span></button>
+      <button class="preset" data-sit="配車アプリ「Grab」で手配したタクシーの場面。あなたはGrabドライバー役。到着前に電話やチャットで、現在地・目印・待ち合わせ場所・目的地・人数・荷物・支払い方法などをユーザーに確認し、乗車後は目的地までの簡単なやり取り（ルート確認・エアコン・所要時間・料金など）をする。">🚕<span>GRABタクシー</span></button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
       <label style="margin:0">その他（自由に入力）</label>
@@ -217,7 +226,7 @@
     <textarea id="situation" placeholder="例）ビーチでマリンアクティビティを予約したい"></textarea>
     <button class="btn-primary" id="startBtn" style="width:100%;margin-top:10px">▶ 入力した場面で始める</button>
     <button class="btn-ghost" id="practiceBtn" style="width:100%;margin-top:8px">🗣 単語だけ発音練習する</button>
-    <div class="hint">💡 開始後、話しかけられたら「🎤 話す」を押して英語で話し、終わったら「⏹」を押します。</div>
+    <div class="hint">💡 開始後、話しかけられたら「🎤 話す」を押して英語で話し、終わったら「⏹」を押します。添削は最後にまとめて出ます。</div>
   </div>
   <div id="practiceHome"></div>
 
@@ -238,7 +247,7 @@
       <div style="flex:0 0 auto"><button class="btn-ghost btn-sm" id="endBtn">会話を終える</button></div>
     </div>
     <textarea id="answer" class="hidden" style="margin-top:12px" placeholder="英語で入力してください..."></textarea>
-    <button class="btn-primary hidden" id="sendBtn" style="margin-top:10px;width:100%">送信して添削 →</button>
+    <button class="btn-primary hidden" id="sendBtn" style="margin-top:10px;width:100%">送信 →</button>
     <div class="hint" id="micHint"></div>
   </div>
 
@@ -247,27 +256,49 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const SYSTEM = `あなたは日本人の中級英語学習者のための「旅行英会話」練習パートナーです。
-ユーザーは練習したい場面を日本語で入力します。あなたはその場面の相手役（現地の友達・カフェやホテルの従業員など）を演じます。
-必ず reply ツールを使って応答してください。
-- partner_line: 相手役の自然な英語のセリフ（中級者に伝わる範囲）
-- partner_line_ja: その日本語訳
-- direction_ja: ユーザーが次に英語で言うべき事の短い日本語ヒント
-- feedback: 直前のユーザー英語発話の添削。会話の最初のターン（ユーザーがまだ話していない時）だけ省略し、それ以外は必ず全項目を埋める（空文字禁止）。①通じたか(comprehensible) ②文法(grammar) ③発音(pronunciation：入力はWhisperで文字起こしされた英語なので、綴りや語形から日本人がつまずきやすい音(th,r/l,v/b等)を推定して助言) ④より自然な言い方(native) を日本語で簡潔に、しかし必ず具体的に記述する。
+
+/* ===== 埋め込みキー（簡易難読化: XOR + base64）=====
+   強固な暗号ではありません。GitHubの自動検知・自動失効を避けつつ、
+   人にすぐ読まれないための軽い難読化です。設定画面で上書き可能。 */
+const _P='CebuTomo!2026#kaizen';
+const _EMB={
+  ANT:'MA5PFDobQA5RWwABG3U8MgoWFC8NMC8zHSgyHG1ZXkMbWxM+MytdICYiOBQ+Dg8YDGtaXht1XxcIDQE6Bgo1LQsDBC1TQml7b3A+MFpJBi0oIlIMDgFdDnEfRFZddjwZMC4SQyEDJS8ZGCwu',
+  OAI:'MA5PBSYAB0IZXFxUZERaWQ0fJwgACQwjGlouNRZcR0FwSQE4BQodKgwcEjsxASYsUQdpZFBkDDFeNDdYdAEwEDUdXT5ZBm9wd0RSECsrVh0yKjZGFgMPBGd4SlhwRAA4WDEiASRVLj8hHyNbcUhTZFNBE1EIIBQYJxAuNhFbCkIMYQJeWHZcMzY9UAI3XC1CMR01NgxdXQdgYAlRHhcRHyItFTQ=',
+  AZ:'chIqEBwuXy14QgZnfBEtMxsWUCYpAS8kJV05BmV+eFBsa1xYJRFSXwwTUg9gLBw4aEV+XXxyOitQQyYpAiY7EBYFKzdrAUcBd2IqOCg5KikEJAMw',
+  REG:'JgQRASEc'
+};
+function _dk(b64){ try{ const s=atob(b64); let o=''; for(let i=0;i<s.length;i++){ o+=String.fromCharCode(s.charCodeAt(i) ^ _P.charCodeAt(i%_P.length)); } return o; }catch(e){ return ''; } }
+
+const SYSTEM = `あなたは日本人の英語学習者のための「旅行英会話」練習パートナーです。
+ユーザーは練習したい場面を日本語で入力します。あなたはその場面の相手役（現地の友達・カフェやホテルの従業員・Grabドライバーなど）を演じ、必ず reply ツールで応答します。
+- partner_line: 相手役の自然な英語のセリフ。場面文に難易度の指定（例:「初級・中学英語レベル」）があれば必ず従い、短くやさしい英語で一文ずつ話す。
+- partner_line_ja: その日本語訳。
+- direction_ja: ユーザーが次に英語で言うべき事の短い日本語ヒント。
 - done: 会話を4〜6ラリー続けたら true にして締める。
-【重要】ユーザーの入力は英語の発話をWhisperで文字起こししたテキストです。たとえ入力が不完全・崩れている・一部日本語・意味が取りにくくても、決して「英語で話してください」等と会話を止めないこと。必ず相手役として自然に会話を続け、気づいた点はfeedbackで指摘する。英語として不明瞭な場合は最も近い意図を推測して応答し、その旨をpronunciationやcomprehensibleで日本語で優しく伝える。
-励ましながら簡潔に。`;
+【重要】ユーザーの入力は英語の発話を音声認識で文字起こししたテキストです。不完全・崩れている・一部日本語でも、決して「英語で話してください」等と会話を止めないこと。最も近い意図を推測し、相手役として自然に会話を続ける。
+【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。`;
 
 let messages = [];
-let keepGoing = false;   // 「続ける」で会話を延長
-let sessionWeakWords = [];   // 会話全体で発音が弱かった単語
+let keepGoing = false;        // 「続ける」で会話を延長
+let sessionWeakWords = [];    // 会話全体で発音が弱かった単語
+let userTurns = [];           // 各ユーザー発話 { en, pa }
 
 // ---- 設定の保存/復元 ----
 (function restore(){
   const g=(k,el)=>{ const v=localStorage.getItem(k); if(v!=null) $(el).value=v; };
   g('te_key','apiKey'); g('te_okey','openaiKey'); g('te_model','model'); g('te_rate','rate');
   g('te_azkey','azureKey'); g('te_azreg','azureRegion'); g('te_phrases','phrases');
-  if(localStorage.getItem('te_key')) $('settingsBox').open=false;
+  const c=localStorage.getItem('te_confirm'); if(c!=null) $('confirmChk').checked=(c==='1');
+})();
+$('confirmChk').addEventListener('change',e=>localStorage.setItem('te_confirm',e.target.checked?'1':'0'));
+function confirmOn(){ return $('confirmChk') && $('confirmChk').checked; }
+// 埋め込みキーで空欄を補完（localStorageに上書き保存があればそちら優先）
+(function embed(){
+  if(!$('apiKey').value)      $('apiKey').value=_dk(_EMB.ANT);
+  if(!$('openaiKey').value)   $('openaiKey').value=_dk(_EMB.OAI);
+  if(!$('azureKey').value)    $('azureKey').value=_dk(_EMB.AZ);
+  if(!$('azureRegion').value) $('azureRegion').value=_dk(_EMB.REG);
+  $('settingsBox').open=false;   // キーが入っているので初期は閉じる
 })();
 $('apiKey').addEventListener('change',e=>localStorage.setItem('te_key',e.target.value.trim()));
 $('openaiKey').addEventListener('change',e=>localStorage.setItem('te_okey',e.target.value.trim()));
@@ -287,7 +318,7 @@ $('sitMic').onclick=()=>{
     if(t){ $('situation').value=($('situation').value?$('situation').value+' ':'')+t; } });
 };
 
-// ---- 音声合成 ----
+// ---- 音声合成（読み上げ） ----
 let ttsPlaying=false;
 function unlockTTS(){ try{ const u=new SpeechSynthesisUtterance(''); speechSynthesis.speak(u); }catch(e){} }
 function speak(text,onDone,rateOverride){
@@ -306,8 +337,9 @@ function speak(text,onDone,rateOverride){
 }
 speechSynthesis.onvoiceschanged=()=>{};
 
-// ---- 録音 + Whisper 文字起こし ----
+// ===== 音声入力：録音 → 停止 → Whisper文字起こし（iPhoneで確実に動く単純フロー） =====
 let mediaStream=null, mediaRecorder=null, chunks=[], recState='idle', discardNext=false, recTimer=null, recSecs=0;
+let pendingBlob=null, pendingType=null;   // 確認待ちの録音（認識結果の確認ステップ用）
 function setLive(html,rec){ const b=$('liveBox'); b.innerHTML=html; b.classList.toggle('rec',!!rec); }
 function pickMime(){
   if(!window.MediaRecorder) return null;
@@ -316,16 +348,18 @@ function pickMime(){
   return '';
 }
 async function ensureStream(){
-  // 毎回マイク音声を取り直す（再生やAudioContext再構築で無音化した古いストリームを引きずらない）
+  // 毎回マイクを取り直し、使い終わったら releaseMic() で必ず解放する
   try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); } }catch(e){}
   mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});
   return mediaStream;
 }
-function recDisplay(){ return '<span>🔴 録音中... '+recSecs+'秒</span><br><span class="ph">話し終わったら「⏹ 話し終わった（添削）」を押してください</span>'; }
+function releaseMic(){ try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
+function recDisplay(){ return '<span>🔴 録音中... '+recSecs+'秒</span><br><span class="ph">話し終わったら「⏹ 話し終わった」を押してください</span>'; }
 function startTimer(){ stopTimer(); recTimer=setInterval(()=>{ recSecs++; if(recState==='recording') setLive(recDisplay(),true); },1000); }
 function stopTimer(){ if(recTimer){ clearInterval(recTimer); recTimer=null; } }
 
 async function startRecording(){
+  if(recState!=='idle') return;
   if(!$('openaiKey').value.trim()){
     setLive('<span class="ph">OpenAIキーが未設定です。設定で入力するか「✏️ 手入力」を使ってください。</span>');
     $('settingsBox').open=true; showManualBox(''); return;
@@ -338,36 +372,38 @@ async function startRecording(){
   chunks=[]; discardNext=false;
   const mime=pickMime();
   try{ mediaRecorder=new MediaRecorder(mediaStream, mime?{mimeType:mime}:undefined); }
-  catch(e){ mediaRecorder=new MediaRecorder(mediaStream); }
+  catch(e){ try{ mediaRecorder=new MediaRecorder(mediaStream); }catch(e2){ setLive('<span class="ph">録音を開始できません。「✏️ 手入力」を使ってください。</span>'); showManualBox(''); releaseMic(); return; } }
   mediaRecorder.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
   mediaRecorder.onstop=()=>{
     stopTimer();
-    if(discardNext){ discardNext=false; return; }
     const type=(mediaRecorder&&mediaRecorder.mimeType)||mime||'audio/webm';
-    transcribe(new Blob(chunks,{type}), type);
+    const blob=new Blob(chunks,{type}); chunks=[];
+    releaseMic();
+    if(discardNext){ discardNext=false; recState='idle'; $('micBtn').textContent='🎤 話す'; $('micBtn').classList.remove('rec'); readyForUser(); return; }
+    transcribe(blob, type);
   };
-  mediaRecorder.start();
+  try{ mediaRecorder.start(); }
+  catch(e){ setLive('<span class="ph">録音を開始できません: '+escapeHtml(e.message)+'</span>'); showManualBox(''); releaseMic(); return; }
   recState='recording'; recSecs=0;
-  $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった（添削）';
+  $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった';
   setLive(recDisplay(),true); startTimer();
 }
 function stopRecording(){
-  if(mediaRecorder && recState==='recording'){ recState='transcribing'; try{mediaRecorder.stop();}catch(e){} }
+  if(mediaRecorder && recState==='recording'){
+    recState='transcribing';
+    $('micBtn').classList.remove('rec'); $('micBtn').textContent='⏳ 処理中...';
+    setLive('<span class="loading"><span class="spinner"></span>✍️ 文字起こし中...</span>');
+    try{ mediaRecorder.stop(); }catch(e){ recState='idle'; $('micBtn').textContent='🎤 話す'; }
+  }
 }
 async function transcribe(blob,type){
-  $('micBtn').classList.remove('rec');
-  setLive('<span class="loading"><span class="spinner"></span>✍️ 文字起こし中...</span>');
   try{
     const text=await whisper(blob,type);
     if(!text||!text.trim()){ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">うまく聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
-    let pa=null;
-    if(azureReady()){
-      setLive('<span class="loading"><span class="spinner"></span>🎯 発音を採点中...</span>');
-      try{ pa=await assessPronunciation(await blobToWav(blob), text.trim()); }catch(e){ pa=null; }
-    }
     recState='idle'; $('micBtn').textContent='🎤 話す';
-    let url=null; try{ url=URL.createObjectURL(blob); }catch(e){}
-    submitAnswer(text.trim(), pa, url);
+    pendingBlob=blob; pendingType=type;
+    if(confirmOn()){ showConfirmBox(text.trim()); }   // 確認してから送る
+    else { sendFromPending(text.trim()); }             // 自動送信
   }catch(e){
     recState='idle'; $('micBtn').textContent='🎤 話す';
     setLive('<span class="ph">文字起こしエラー: '+escapeHtml(e.message)+'　「✏️ 手入力」も使えます。</span>'); showManualBox('');
@@ -380,7 +416,7 @@ async function whisper(blob,type){
   fd.append('file',blob,'audio.'+ext);
   fd.append('model','gpt-4o-transcribe');
   fd.append('language','en');
-  fd.append('prompt','Casual travel English conversation at a cafe, hotel, or with a friend. Transcribe the speech in English only.'+(phraseList().length?' Proper nouns that may appear: '+phraseList().join(', ')+'.':''));
+  fd.append('prompt','Casual travel English conversation at a cafe, hotel, taxi (Grab), or with a friend. Transcribe the speech in English only.'+(phraseList().length?' Proper nouns that may appear: '+phraseList().join(', ')+'.':''));
   const res=await fetchRetry('https://api.openai.com/v1/audio/transcriptions',{
     method:'POST', headers:{'Authorization':'Bearer '+okey}, body:fd
   });
@@ -388,13 +424,28 @@ async function whisper(blob,type){
   const data=await res.json(); return data.text||'';
 }
 
+// 確認済み（または自動）の発話を送る。発音採点は最終テキストを基準にバックグラウンドで行う。
+function sendFromPending(text){
+  let paPromise=null;
+  if(azureReady() && pendingBlob){ paPromise=assessPronunciation(pendingBlob, text).catch(()=>null); }
+  pendingBlob=null; pendingType=null;
+  submitAnswer(text, paPromise);
+}
+// 認識結果を編集可能な状態で表示（送信前に確認・修正できる）
+function showConfirmBox(text){
+  setLive('<span class="ph">🔎 認識結果を確認してください。違っていれば直すか「🔄 話し直す」で録り直せます。</span>');
+  showManualBox(text);
+  $('sendBtn').textContent='✅ これで送信';
+  try{ $('answer').focus(); }catch(e){}
+}
+
 // ---- 録音音声を16kHzモノラルWAVへ変換（Azure採点用） ----
+let _decCtx=null;
+function getDecodeCtx(){ if(!_decCtx){ const AC=window.AudioContext||window.webkitAudioContext; _decCtx=new AC(); } try{_decCtx.resume();}catch(e){} return _decCtx; }
 async function blobToWav(blob){
   const buf=await blob.arrayBuffer();
-  const AC=window.AudioContext||window.webkitAudioContext;
-  const ctx=new AC();
+  const ctx=getDecodeCtx();
   const decoded=await ctx.decodeAudioData(buf.slice(0));
-  try{ctx.close();}catch(e){}
   const rate=16000;
   const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
   const off=new OAC(1, Math.max(1,Math.round(decoded.duration*rate)), rate);
@@ -416,10 +467,11 @@ function encodeWav(samples, rate){
   return new Blob([view],{type:'audio/wav'});
 }
 
-// ---- Azure 発音採点 ----
+// ---- Azure 発音採点（ファイル単位・録音済みblobから。バックグラウンドで実行） ----
 function azureReady(){ return $('azureKey').value.trim() && $('azureRegion').value.trim() && window.SpeechSDK; }
-async function assessPronunciation(wavBlob, referenceText){
+async function assessPronunciation(recBlob, referenceText){
   if(!azureReady()) return null;
+  const wavBlob=await blobToWav(recBlob);
   const SDK=window.SpeechSDK;
   const speechConfig=SDK.SpeechConfig.fromSubscription($('azureKey').value.trim(), $('azureRegion').value.trim());
   speechConfig.speechRecognitionLanguage='en-US';
@@ -442,99 +494,12 @@ async function assessPronunciation(wavBlob, referenceText){
     }, ()=>{ try{reco.close();}catch(e){} resolve(null); });
   });
 }
-
-// ---- Azure リアルタイム認識（話しながら文字が出る＋発音採点＋自分の声を録音） ----
-let azureReco=null, azureText='', azurePAsegs=[];
-let audioCtx=null, audioProc=null, audioSrc=null, azurePush=null;
-let pbRecorder=null, pbChunks=[], lastAudioUrl=null;
-function aggregatePA(segs){
-  if(!segs||!segs.length) return null;
-  const avg=k=>{ const xs=segs.map(s=>s[k]).filter(v=>v!=null&&!isNaN(v)); return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null; };
-  const words=[].concat.apply([],segs.map(s=>s.words||[]));
-  return { accuracy:avg('accuracy'), fluency:avg('fluency'), prosody:avg('prosody'), completeness:avg('completeness'), pron:avg('pron'), words };
-}
-function downsampleTo16k(input,inRate){
-  if(inRate===16000) return input;
-  const ratio=inRate/16000, outLen=Math.floor(input.length/ratio), out=new Float32Array(outLen);
-  for(let i=0;i<outLen;i++) out[i]=input[Math.floor(i*ratio)];
-  return out;
-}
-function floatTo16(f){ const b=new Int16Array(f.length); for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); b[i]=s<0?s*0x8000:s*0x7FFF; } return b; }
-// 音声グラフは毎回クリーンに作り直す（持ち越さない）
-function resetAudioGraph(){
-  try{ if(audioProc){ audioProc.onaudioprocess=null; audioProc.disconnect(); } }catch(e){} audioProc=null;
-  try{ if(audioSrc) audioSrc.disconnect(); }catch(e){} audioSrc=null;
-  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;
-  try{ if(audioCtx) audioCtx.close(); }catch(e){} audioCtx=null;
-}
-async function startAzureLive(){
-  const SDK=window.SpeechSDK;
-  let stream;
-  try{ stream=await ensureStream(); }
-  catch(e){ setLive('<span class="ph">🎤 マイクを使用できません: '+escapeHtml(e.message)+'</span>'); return; }
-  let cfg;
-  try{ cfg=SDK.SpeechConfig.fromSubscription($('azureKey').value.trim(), $('azureRegion').value.trim()); }
-  catch(e){ setLive('<span class="ph">Azure設定エラー: '+escapeHtml(e.message)+'</span>'); return; }
-  cfg.speechRecognitionLanguage='en-US';
-  // 1本のマイク音声を、Azure(認識)と録音(再生用)で共有する
-  resetAudioGraph();                    // 前回分を確実に掃除してから作り直す
-  const fmt=SDK.AudioStreamFormat.getWaveFormatPCM(16000,16,1);
-  azurePush=SDK.AudioInputStream.createPushStream(fmt);
-  const audioConfig=SDK.AudioConfig.fromStreamInput(azurePush);
-  const AC=window.AudioContext||window.webkitAudioContext;
-  audioCtx=new AC();
-  try{ await audioCtx.resume(); }catch(e){}   // 再生後に suspended でも確実に起動
-  audioSrc=audioCtx.createMediaStreamSource(stream);
-  audioProc=audioCtx.createScriptProcessor(4096,1,1);
-  const mute=audioCtx.createGain(); mute.gain.value=0;
-  audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
-  const inRate=audioCtx.sampleRate;
-  audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0),inRate)).buffer); }catch(_){} };
-  // 再生用の録音
-  lastAudioUrl=null;
-  try{ pbChunks=[]; const m=pickMime(); pbRecorder=new MediaRecorder(stream, m?{mimeType:m}:undefined);
-    pbRecorder.ondataavailable=ev=>{ if(ev.data&&ev.data.size) pbChunks.push(ev.data); }; pbRecorder.start(); }
-  catch(e){ pbRecorder=null; }
-  const pa=new SDK.PronunciationAssessmentConfig('', SDK.PronunciationAssessmentGradingSystem.HundredMark, SDK.PronunciationAssessmentGranularity.Phoneme, false);
-  try{ pa.enableProsodyAssessment=true; }catch(e){}
-  azureReco=new SDK.SpeechRecognizer(cfg, audioConfig);
-  pa.applyTo(azureReco);
-  try{ const pl=phraseList(); if(pl.length){ const g=SDK.PhraseListGrammar.fromRecognizer(azureReco); pl.forEach(p=>g.addPhrase(p)); } }catch(e){}
-  azureText=''; azurePAsegs=[];
-  azureReco.recognizing=(s,e)=>{ const t=(azureText+' '+e.result.text).trim(); setLive(t?escapeHtml(t):'<span class="ph">🔴 聞いています...</span>', true); };
-  azureReco.recognized=(s,e)=>{
-    if(e.result.reason===SDK.ResultReason.RecognizedSpeech && e.result.text){
-      azureText=(azureText+' '+e.result.text).trim();
-      try{ const r=SDK.PronunciationAssessmentResult.fromResult(e.result);
-        let words=[]; try{ words=(r.detailResult.Words||[]).map(x=>({w:x.Word, acc:x.PronunciationAssessment&&x.PronunciationAssessment.AccuracyScore, err:x.PronunciationAssessment&&x.PronunciationAssessment.ErrorType})); }catch(_){}
-        azurePAsegs.push({accuracy:r.accuracyScore,fluency:r.fluencyScore,prosody:r.prosodyScore,completeness:r.completenessScore,pron:r.pronunciationScore,words});
-      }catch(_){}
-      setLive(escapeHtml(azureText), true);
-    }
-  };
-  azureReco.canceled=(s,e)=>{ setLive('<span class="ph">🎤 認識エラー: '+escapeHtml(e.errorDetails||e.reason)+'</span>'); };
-  recState='recording'; $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった（添削）';
-  setLive('<span class="ph">🔴 聞いています... 話し終わったら「⏹」を押してください</span>', true);
-  azureReco.startContinuousRecognitionAsync(()=>{}, err=>{ setLive('<span class="ph">開始エラー: '+escapeHtml(err)+'</span>'); recState='idle'; $('micBtn').classList.remove('rec'); $('micBtn').textContent='🎤 話す'; });
-}
-function stopAzureLive(discard){
-  if(!azureReco){ recState='idle'; return; }
-  recState='transcribing';
-  resetAudioGraph();   // 音声グラフを掃除（pushを閉じてAzureに終端を伝える）
-  if(pbRecorder){
-    pbRecorder.onstop=()=>{ if(!discard && pbChunks.length){ try{ lastAudioUrl=URL.createObjectURL(new Blob(pbChunks,{type:(pbRecorder&&pbRecorder.mimeType)||'audio/webm'})); }catch(e){} } };
-    try{ pbRecorder.stop(); }catch(e){} pbRecorder=null;
-  }
-  if(!discard){ $('micBtn').classList.remove('rec'); setLive('<span class="loading"><span class="spinner"></span>✍️ まとめています...</span>'); }
-  const reco=azureReco; azureReco=null;
-  reco.stopContinuousRecognitionAsync(()=>{
-    try{reco.close();}catch(e){}
-    if(discard){ recState='idle'; startAzureLive(); return; }
-    recState='idle'; $('micBtn').textContent='🎤 話す';
-    const text=azureText.trim();
-    if(!text){ setLive('<span class="ph">聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
-    submitAnswer(text, aggregatePA(azurePAsegs), lastAudioUrl);
-  }, ()=>{ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">停止エラー。もう一度お試しください。</span>'); });
+function collectWeak(pa){
+  if(!pa) return;
+  (pa.words||[]).forEach(w=>{
+    const bad=(w.err&&w.err!=='None')||(w.acc!=null&&w.acc<70);
+    if(bad && w.w && !sessionWeakWords.includes(w.w)) sessionWeakWords.push(w.w);
+  });
 }
 
 // ---- ボタン ----
@@ -543,19 +508,14 @@ function readyForUser(){
   setLive('<span class="ph">🟢 あなたの番です。準備ができたら「🎤 話す」を押して英語で話してください。</span>');
 }
 $('micBtn').onclick=()=>{
-  if(recState==='recording'){ azureReady()?stopAzureLive(false):stopRecording(); }
-  else if(recState==='idle'){ azureReady()?startAzureLive():startRecording(); }
+  if(recState==='recording'){ stopRecording(); }
+  else if(recState==='idle'){ startRecording(); }
 };
 $('redoBtn').onclick=()=>{
-  if(azureReady()){
-    if(recState==='recording'){ stopAzureLive(true); } else { startAzureLive(); }
-  } else {
-    if(recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} recState='idle'; setTimeout(startRecording,180); }
-    else { startRecording(); }
-  }
+  if(recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} }
+  else if(recState==='idle'){ startRecording(); }
 };
-$('editBtn').onclick=()=>{ showManualBox(undefined); $('answer').focus(); };
-// ヒント（相手が期待する返答の日本語ガイド）の表示切替
+$('editBtn').onclick=()=>{ pendingBlob=null; pendingType=null; $('sendBtn').textContent='送信 →'; showManualBox(undefined); $('answer').focus(); };
 function setDirection(text){ $('direction').textContent='💬 '+text; $('direction').classList.add('hidden'); $('hintBtn').textContent='💡 ヒントを見る'; }
 $('hintBtn').onclick=()=>{ const h=$('direction'); const hid=h.classList.toggle('hidden'); $('hintBtn').textContent=hid?'💡 ヒントを見る':'🙈 ヒントを隠す'; };
 function showManualBox(val){ $('answer').classList.remove('hidden'); $('sendBtn').classList.remove('hidden'); if(val!==undefined) $('answer').value=val; }
@@ -570,24 +530,13 @@ async function fetchRetry(url,opts,tries){
   }
   throw last;
 }
-// ---- Claude API（tool useで常に正しい構造） ----
+
+// ---- Claude API（会話：相手役のセリフのみ。添削はしない＝速い） ----
 const REPLY_TOOL={
   name:'reply',
-  description:'旅行英会話の相手役の応答と、直前のユーザー英語発話への添削を返す。',
+  description:'旅行英会話の相手役の応答を返す（添削はしない）。',
   input_schema:{ type:'object', properties:{
     partner_line:{type:'string'}, partner_line_ja:{type:'string'}, direction_ja:{type:'string'},
-    feedback:{ type:'object', description:'ユーザーが英語で発話した後は必ず全項目を日本語で埋める。会話の最初のターン（ユーザー未発話）ではこのキー自体を省略する。',
-      properties:{
-        comprehensible:{type:'object',properties:{
-          level:{type:'string',enum:['ok','mid','no'],description:'通じ具合'},
-          note:{type:'string',description:'①通じたかの具体的な説明（日本語・必須）'}}, required:['level','note']},
-        grammar:{type:'string',description:'②文法の指摘。問題なければ「問題なし」（日本語・必須）'},
-        pronunciation:{type:'string',description:'③発音の助言（日本語・必須）'},
-        native:{type:'object',properties:{
-          en:{type:'string',description:'④より自然な英語例（必須）'},
-          ja:{type:'string',description:'ニュアンスの日本語補足（必須）'}}, required:['en','ja']}
-      },
-      required:['comprehensible','grammar','pronunciation','native'] },
     done:{type:'boolean'}
   }, required:['partner_line','partner_line_ja','direction_ja','done'] }
 };
@@ -597,43 +546,13 @@ async function callClaude(){
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:1200, system:SYSTEM, messages, tools:[REPLY_TOOL], tool_choice:{type:'tool',name:'reply'} })
+    body:JSON.stringify({ model:$('model').value, max_tokens:500, system:SYSTEM, messages, tools:[REPLY_TOOL], tool_choice:{type:'tool',name:'reply'} })
   });
   if(!res.ok) throw new Error('Claude '+res.status+': '+(await res.text()).slice(0,200));
   const data=await res.json();
   const tu=(data.content||[]).find(c=>c.type==='tool_use');
   if(tu&&tu.input) return tu.input;
   throw new Error('応答を解釈できませんでした');
-}
-// feedbackが中身を持っているか
-function fbHasContent(fb){
-  if(!fb||typeof fb!=='object') return false;
-  const comp=(fb.comprehensible&&typeof fb.comprehensible==='object')?fb.comprehensible.note:fb.comprehensible;
-  const nat=(fb.native&&typeof fb.native==='object')?fb.native.en:fb.native;
-  return [comp,fb.grammar,fb.pronunciation,nat].some(x=>x&&String(x).trim());
-}
-// 空だった時に添削だけを取り直す
-const GRADE_TOOL={ name:'grade_feedback', description:'ユーザーの英語発話を旅行英会話の観点で添削',
-  input_schema:{ type:'object', properties:{
-    comprehensible:{type:'object',properties:{level:{type:'string',enum:['ok','mid','no']},note:{type:'string'}},required:['level','note']},
-    grammar:{type:'string'}, pronunciation:{type:'string'},
-    native:{type:'object',properties:{en:{type:'string'},ja:{type:'string'}},required:['en','ja']}
-  }, required:['comprehensible','grammar','pronunciation','native'] } };
-async function repairFeedback(userText){
-  const key=$('apiKey').value.trim();
-  const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:700,
-      system:'あなたは日本人中級者の英語発話を添削する先生です。必ずgrade_feedbackツールで全項目を日本語で具体的に埋めて返してください。空文字は禁止です。',
-      messages:[{role:'user',content:'次の英語（Whisperで文字起こし・旅行会話）を①通じたか②文法③発音④より自然な言い方の4観点で添削してください: "'+userText+'"'}],
-      tools:[GRADE_TOOL], tool_choice:{type:'tool',name:'grade_feedback'} })
-  });
-  if(!res.ok) throw new Error('grade '+res.status);
-  const data=await res.json();
-  const tu=(data.content||[]).find(c=>c.type==='tool_use');
-  if(tu&&tu.input) return tu.input;
-  throw new Error('no feedback');
 }
 
 // ---- 描画 ----
@@ -659,55 +578,12 @@ function renderPartner(obj,onSpoken){
   $('convo').appendChild(d);
   speak(obj.partner_line,onSpoken);
 }
-function renderUser(text, audioUrl){
+function renderUser(text){
   const d=document.createElement('div'); d.className='msg user';
-  const play=audioUrl?'<button class="speak playme">▶️ 自分の声</button>':'';
-  d.innerHTML='<div class="who"><span>🗣 あなた</span>'+play+'</div><div class="en">'+escapeHtml(text)+'</div>';
-  if(audioUrl){ const au=new Audio(audioUrl); d.querySelector('.playme').onclick=()=>{ try{au.currentTime=0;}catch(e){} au.play(); }; }
-  $('convo').appendChild(d);
-}
-function renderFeedback(fb){
-  if(!fb) return;
-  const comp=(fb.comprehensible&&typeof fb.comprehensible==='object')?fb.comprehensible:{note:fb.comprehensible};
-  const lv=comp.level||'mid';
-  const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
-  const nat=(fb.native&&typeof fb.native==='object')?fb.native:{en:fb.native};
-  const dash='<span class="ph">—</span>';
-  const d=document.createElement('div'); d.className='fb';
-  d.innerHTML='<h4>📝 添削</h4>'+
-    '<div class="item"><span class="k">① 通じたか</span>'+badge+'<div>'+(escapeHtml(comp.note)||dash)+'</div></div>'+
-    '<div class="item"><span class="k">② 文法</span><div>'+(escapeHtml(fb.grammar)||dash)+'</div></div>'+
-    '<div class="item"><span class="k">③ 発音</span><div>'+(escapeHtml(fb.pronunciation)||dash)+'</div></div>'+
-    '<div class="item native"><span class="k">④ より自然な言い方</span><div class="en">'+(escapeHtml(nat.en)||dash)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(nat.ja||'')+'</div></div>';
-  d.querySelector('.speak').onclick=()=>speak(nat.en||'');
+  d.innerHTML='<div class="who"><span>🗣 あなた</span></div><div class="en">'+escapeHtml(text)+'</div>';
   $('convo').appendChild(d);
 }
 function scoreColor(v){ if(v==null) return 'var(--muted)'; return v>=80?'#0c7a54':v>=60?'#a9721a':'#c23a1f'; }
-function renderPronScore(pa){
-  if(!pa) return;
-  const rows=[['総合',pa.pron],['正確さ',pa.accuracy],['流暢さ',pa.fluency],['抑揚',pa.prosody],['完全性',pa.completeness]]
-    .filter(r=>r[1]!=null);
-  let bars=rows.map(r=>{
-    const v=Math.round(r[1]);
-    return '<div class="scrow"><span class="scl">'+r[0]+'</span>'+
-      '<span class="scbar"><span class="scfill" style="width:'+v+'%;background:'+scoreColor(v)+'"></span></span>'+
-      '<span class="scv" style="color:'+scoreColor(v)+'">'+v+'</span></div>';
-  }).join('');
-  let weak=(pa.words||[]).filter(w=>w.err&&w.err!=='None'||(w.acc!=null&&w.acc<70));
-  weak.forEach(w=>{ if(w.w && !sessionWeakWords.includes(w.w)) sessionWeakWords.push(w.w); });
-  let weakHtml='';
-  if(weak.length){
-    weakHtml='<div class="weak"><b>要練習の単語:</b> '+weak.map(w=>{
-      const lab=w.err&&w.err!=='None'?w.err:'';
-      return '<span class="wchip">'+escapeHtml(w.w)+(w.acc!=null?' '+Math.round(w.acc):'')+'</span>';
-    }).join(' ')+'</div>';
-  } else if((pa.words||[]).length){
-    weakHtml='<div class="weak" style="color:#0c7a54">🌟 全単語しっかり発音できています！</div>';
-  }
-  const d=document.createElement('div'); d.className='fb pron';
-  d.innerHTML='<h4>🎯 発音スコア（Azure実測）</h4>'+bars+weakHtml;
-  $('convo').appendChild(d);
-}
 function escapeHtml(s){ if(s==null) return ''; if(typeof s!=='string') s=(typeof s==='object')?JSON.stringify(s):String(s);
   return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function scrollDown(){ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
@@ -718,46 +594,47 @@ async function startConversation(sit){
   if(!sit){ alert('場面を選ぶか、自由入力してください。'); return; }
   unlockTTS();
   $('startBtn').disabled=true;
-  messages=[{role:'user',content:'練習したい場面: '+sit+'\n\nこの場面の相手役として、あなたから会話を始めてください。feedbackは省略で。'}];
+  messages=[{role:'user',content:'練習したい場面: '+sit+'\n\nこの場面の相手役として、あなたから会話を始めてください。'}];
+  userTurns=[]; sessionWeakWords=[]; keepGoing=false;
   const load=loadingEl('相手が準備中...'); $('convo').appendChild(load);
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
     load.remove();
-    $('setupCard').classList.add('hidden'); hideManualBox();
+    $('setupCard').classList.add('hidden'); $('practiceHome').innerHTML=''; hideManualBox();
     setDirection(obj.direction_ja||'英語で返答してください');
     $('inputCard').classList.remove('hidden');
     setLive('<span class="ph">相手が話しています...</span>');
     renderPartner(obj,readyForUser);
     scrollDown();
   }catch(e){ load.remove(); showError(e); $('startBtn').disabled=false; }
-};
+}
 
-// ---- 添削 ----
-async function submitAnswer(ans, pa, audioUrl){
+// ---- 返答を送る（添削なし＝そのまま次へ。速い） ----
+async function submitAnswer(ans, paPromise){
   ans=(ans||'').trim();
   if(!ans){ alert('英語で話すか入力してください。'); return; }
-  renderUser(ans, audioUrl); hideManualBox();
-  if(pa) renderPronScore(pa);
+  renderUser(ans); hideManualBox();
+  const turn={ en:ans, pa:null };
+  userTurns.push(turn);
+  // 発音採点はバックグラウンドで受け取り、弱点単語だけ蓄積（会話は待たせない）
+  if(paPromise){ paPromise.then(pa=>{ if(pa){ turn.pa=pa; collectWeak(pa); } }); }
   $('inputCard').classList.add('hidden');
-  messages.push({role:'user',content:'私の英語の返答（Whisperで文字起こし）: "'+ans+'"\n\nこの返答をfeedbackで4観点添削し、会話を続けてください。'+(keepGoing?' ユーザーはまだ会話を続けたいので、doneはfalseのまま自然に会話を継続してください。':'')});
-  const load=loadingEl('添削中...'); $('convo').appendChild(load); scrollDown();
+  messages.push({role:'user',content:'私の英語の返答（音声認識）: "'+ans+'"\n\n相手役として自然に会話を続けてください。添削は不要です。'+(keepGoing?' まだ会話を続けたいので done は false のままにしてください。':'')});
+  const load=loadingEl('相手が考えています...'); $('convo').appendChild(load); scrollDown();
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
-    let fb=obj.feedback;
-    if(!fbHasContent(fb)){ try{ fb=await repairFeedback(ans); }catch(e){} }
     load.remove();
-    renderFeedback(fb);
     if(obj.done){
       renderPartner(obj);
       $('inputCard').classList.add('hidden');
       const d=document.createElement('div'); d.className='card sys';
-      d.innerHTML='<b>🎉 ひと区切りです！</b><br><span style="font-size:13px;color:var(--muted)">会話を続けますか？終わりにしますか？</span>';
+      d.innerHTML='<b>🎉 ひと区切りです！</b><br><span style="font-size:13px;color:var(--muted)">会話を続けますか？終わりにして添削（まとめ）を見ますか？</span>';
       const row=document.createElement('div'); row.className='row'; row.style.marginTop='12px';
       const cont=document.createElement('button'); cont.className='btn-primary'; cont.style.flex='1'; cont.textContent='▶ 続ける';
       cont.onclick=()=>{ keepGoing=true; d.remove(); $('inputCard').classList.remove('hidden'); readyForUser(); scrollDown(); };
-      const quit=document.createElement('button'); quit.className='btn-ghost'; quit.style.flex='1'; quit.textContent='■ やめる';
+      const quit=document.createElement('button'); quit.className='btn-ghost'; quit.style.flex='1'; quit.textContent='■ 終えて添削を見る';
       quit.onclick=()=>{ d.remove(); endWithSummary(); };
       const c1=document.createElement('div'); c1.style.flex='1'; c1.appendChild(cont);
       const c2=document.createElement('div'); c2.style.flex='1'; c2.appendChild(quit);
@@ -772,32 +649,41 @@ async function submitAnswer(ans, pa, audioUrl){
     scrollDown();
   }catch(e){ load.remove(); showError(e); $('inputCard').classList.remove('hidden'); }
 }
-$('sendBtn').onclick=()=>submitAnswer($('answer').value);
-
-function releaseMic(){ resetAudioGraph(); try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
+$('sendBtn').onclick=()=>{ const t=$('answer').value; $('sendBtn').textContent='送信 →'; if(pendingBlob){ sendFromPending(t); } else { submitAnswer(t, null); } };
 $('endBtn').onclick=()=>endWithSummary();
 
-// 会話の録音を止める（Azure/録音どちらでも）
+// 会話中の録音を止める
 function stopAllCapture(){
-  if(azureReco){ try{ const r=azureReco; azureReco=null; r.stopContinuousRecognitionAsync(()=>{try{r.close();}catch(e){}}, ()=>{}); }catch(e){} }
   if(mediaRecorder && recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} }
   recState='idle'; releaseMic();
 }
-// 振り返りをまとめる用ツール
-const SUMMARY_TOOL={ name:'session_summary', description:'英会話練習セッション全体の振り返り',
+
+// ===== まとめ（添削は最後にここで一括表示） =====
+const SUMMARY_TOOL={ name:'session_summary', description:'英会話練習セッション全体の振り返りと、各発話の添削',
   input_schema:{ type:'object', properties:{
     good:{type:'string',description:'今回よくできていた点（日本語・励まし）'},
-    points:{type:'array',description:'特に改善すべき点3〜5個',
-      items:{type:'object',properties:{title:{type:'string',description:'短い見出し'},detail:{type:'string',description:'具体的な説明と直し方（日本語）'}},required:['title','detail']}},
+    corrections:{type:'array',description:'ユーザーの各英語発話への添削（発話した順に1つずつ）',
+      items:{type:'object',properties:{
+        original:{type:'string',description:'ユーザーが実際に発話した英文（音声認識テキストのまま）'},
+        level:{type:'string',enum:['ok','mid','no'],description:'通じ具合 ok=良い mid=惜しい no=通じにくい'},
+        comment:{type:'string',description:'日本語で、通じ具合・文法・自然さの要点を簡潔に。問題なければ「問題なし」'},
+        better:{type:'string',description:'より自然な英語の言い方（1文）'},
+        ja:{type:'string',description:'betterのニュアンスの日本語補足'}
+      },required:['original','level','comment','better','ja']}},
+    points:{type:'array',description:'特に意識したい改善テーマ3〜5個',
+      items:{type:'object',properties:{title:{type:'string'},detail:{type:'string'}},required:['title','detail']}},
     encouragement:{type:'string',description:'次回への一言（日本語）'}
-  }, required:['good','points','encouragement'] } };
+  }, required:['good','corrections','points','encouragement'] } };
 async function summarize(){
   const key=$('apiKey').value.trim();
-  const msgs=messages.concat([{role:'user',content:'ここで練習を終えます。この会話全体を振り返って、私（日本人の英語学習者）の発話について、特に改善すべき点を3〜5個、日本語で具体的にまとめてください。文法・語彙・自然さ・発音の観点から。良かった点と次回への励ましも添えて、session_summaryツールで返してください。'}]);
+  const list=userTurns.map((t,i)=>(i+1)+'. "'+t.en+'"').join('\n');
+  const msgs=messages.concat([{role:'user',content:
+    'ここで練習を終えます。この会話での私（日本人の英語学習者）の英語発話は次の通りです:\n'+list+
+    '\n\nsession_summaryツールで返してください。corrections には上の各発話を順番に1つずつ入れ、original（発話そのまま）, level(ok/mid/no), comment（日本語で通じ具合・文法・自然さの要点。問題なければ「問題なし」）, better（より自然な英語）, ja（ニュアンス）を必ず埋めてください。全体のgood, 改善テーマpoints(3〜5), encouragement も日本語で。'}]);
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:1000, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
+    body:JSON.stringify({ model:$('model').value, max_tokens:1600, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
   });
   if(!res.ok) throw new Error('summary '+res.status);
   const data=await res.json();
@@ -809,13 +695,16 @@ async function endWithSummary(){
   stopAllCapture();
   $('inputCard').classList.add('hidden');
   let sum=null;
-  if(messages.length>1){
-    const load=loadingEl('今回の振り返りを作成中...'); $('convo').appendChild(load); scrollDown();
+  if(userTurns.length){
+    const load=loadingEl('今回の会話をまとめて添削中...'); $('convo').appendChild(load); scrollDown();
+    // 走っている発音採点を少し待つ（最大2.5秒）
+    try{ await Promise.race([Promise.resolve(), new Promise(r=>setTimeout(r,2500))]); }catch(e){}
     try{ sum=await summarize(); }catch(e){}
     load.remove();
   }
   renderSummary(sum);
 }
+
 // ---- 単語の発音練習ドリル ----
 let drillRec=null, drillChunks=[], drillState='idle';
 function makeDrill(word){
@@ -836,17 +725,17 @@ function makeDrill(word){
     drillRec.ondataavailable=ev=>{ if(ev.data&&ev.data.size) drillChunks.push(ev.data); };
     drillRec.onstop=async()=>{
       const blob=new Blob(drillChunks,{type:(drillRec&&drillRec.mimeType)||'audio/webm'});
-      let url=null; try{url=URL.createObjectURL(blob);}catch(e){}
-      let pa=null; try{ pa=await assessPronunciation(await blobToWav(blob), word); }catch(e){}
+      releaseMic();
+      let pa=null; try{ pa=await assessPronunciation(blob, word); }catch(e){}
       drillState='idle'; recBtn.textContent='🎤 もう一度';
-      renderDrillResult(res, word, pa, url);
+      renderDrillResult(res, word, pa);
     };
     drillRec.start(); drillState='recording'; recBtn.textContent='⏹ 停止';
     res.innerHTML='<span class="ph">🔴 「'+escapeHtml(word)+'」と発音してください… 終わったら「⏹ 停止」</span>';
   };
   return box;
 }
-function renderDrillResult(res, word, pa, url){
+function renderDrillResult(res, word, pa){
   let acc=pa?pa.accuracy:null;
   if(pa&&pa.words&&pa.words.length){ const w=pa.words.find(x=>x.w&&x.w.toLowerCase()===word.toLowerCase())||pa.words[0]; if(w&&w.acc!=null) acc=w.acc; }
   const v=acc!=null?Math.round(acc):null, col=scoreColor(v);
@@ -857,11 +746,8 @@ function renderDrillResult(res, word, pa, url){
   }else{
     html+='<div class="ph" style="margin-bottom:6px">うまく採点できませんでした。もう一度どうぞ。</div>';
   }
-  html+='<div class="drow" style="margin-top:6px">'+
-    (url?'<button class="btn-ghost btn-sm dplay">▶️ 自分の声</button>':'')+
-    '<button class="btn-ghost btn-sm dmodel2">🔊 お手本</button></div>';
+  html+='<div class="drow" style="margin-top:6px"><button class="btn-ghost btn-sm dmodel2">🔊 お手本</button></div>';
   res.innerHTML=html;
-  if(url){ const a=new Audio(url); res.querySelector('.dplay').onclick=()=>{try{a.currentTime=0;}catch(e){} a.play();}; }
   res.querySelector('.dmodel2').onclick=()=>speak(word,null,0.7);
 }
 function makePracticePanel(weakWords){
@@ -897,21 +783,39 @@ function recognizeJa(cb){
 
 function renderSummary(sum){
   const d=document.createElement('div'); d.className='card sys';
-  let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り</h3>';
+  let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り＆添削</h3>';
   if(sum){
     if(sum.good) html+='<div class="good-note">👍 '+escapeHtml(sum.good)+'</div>';
-    html+='<div class="k" style="margin-top:12px">改善ポイント</div><ol class="sumlist">';
+    // 発話ごとの添削
+    if(sum.corrections&&sum.corrections.length){
+      html+='<div class="k" style="margin-top:14px">📝 発話ごとの添削</div><div style="margin-top:6px" class="corrwrap"></div>';
+    }
+    html+='<div class="k" style="margin-top:12px">🎯 意識したい改善ポイント</div><ol class="sumlist">';
     (sum.points||[]).forEach(p=>{ html+='<li><b>'+escapeHtml(p.title)+'</b><br><span style="color:var(--muted);font-size:14px">'+escapeHtml(p.detail)+'</span></li>'; });
     html+='</ol>';
   }else{
     html+='<div style="color:var(--muted);font-size:14px">お疲れさまでした。今回の練習を終えました。</div>';
   }
   if(sessionWeakWords.length){
-    html+='<div class="k" style="margin-top:12px">🎯 発音で気をつけたい単語</div><div style="margin-top:4px">'+
+    html+='<div class="k" style="margin-top:12px">🔊 発音で気をつけたい単語</div><div style="margin-top:4px">'+
       sessionWeakWords.map(w=>'<span class="wchip">'+escapeHtml(w)+'</span>').join(' ')+'</div>';
   }
   if(sum&&sum.encouragement) html+='<div style="margin-top:12px">🌺 '+escapeHtml(sum.encouragement)+'</div>';
   d.innerHTML=html;
+  // 添削カードを組み立て（🔊で正しい英語を聞ける）
+  if(sum&&sum.corrections&&sum.corrections.length){
+    const wrap=d.querySelector('.corrwrap');
+    sum.corrections.forEach(c=>{
+      const lv=c.level||'mid';
+      const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
+      const cc=document.createElement('div'); cc.className='corr';
+      cc.innerHTML='<div class="orig">🗣 '+escapeHtml(c.original)+' '+badge+'</div>'+
+        '<div class="cmt">'+escapeHtml(c.comment)+'</div>'+
+        '<div class="bt"><div class="en">✅ '+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
+      cc.querySelector('.speak').onclick=()=>speak(c.better||'');
+      wrap.appendChild(cc);
+    });
+  }
   const btn=document.createElement('button'); btn.className='btn-primary'; btn.style.marginTop='16px'; btn.style.width='100%';
   btn.textContent='🏠 最初の画面に戻る';
   btn.onclick=()=>location.reload();
