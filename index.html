@@ -208,7 +208,7 @@
             </select>
           </div>
         </div>
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk" checked> 認識結果を確認してから送る（誤認識を防ぐ）</label>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk"> 認識結果を確認してから送る（誤認識を防ぐ）</label>
         <div class="hint">💾 キーはアプリに埋め込み済みで、変更した場合のみ各端末のブラウザ内に保存されます。</div>
       </div>
     </details>
@@ -469,10 +469,26 @@ function stopRecording(){
     try{ mediaRecorder.stop(); }catch(e){ recState='idle'; $('micBtn').textContent='🎤 話す'; }
   }
 }
+// 無音・極端に短い録音でWhisperが固有名詞ヒント等を「幻聴」した出力を弾く
+function isLikelyNoise(t){
+  const s=(t||'').trim().replace(/[.!?,、。・…\-]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+  if(!s) return true;
+  const words=s.split(' ');
+  const pl=phraseList().map(x=>x.toLowerCase());
+  const common=['you','thank you','thanks','thank','thanks for watching','bye','okay','ok','uh','um','hmm','ah','oh','yeah','.'];
+  if(pl.length && words.length===1 && pl.includes(words[0])) return true;         // 固有名詞1語だけ
+  if(words.length<=2 && words.every(w=>pl.includes(w)||common.includes(w))) return true; // 固有名詞/相槌のみ
+  return false;
+}
 async function transcribe(blob,type){
   try{
+    // 録音が極端に短い（実質無音）ならWhisperに送らず終了
+    if(recSecs<1 && (!blob || blob.size<1600)){
+      recState='idle'; $('micBtn').textContent='🎤 話す';
+      setLive('<span class="ph">🎤 音声が短すぎました。「🎤 話す」を押して英語で話してください。</span>'); return;
+    }
     const text=await whisper(blob,type);
-    if(!text||!text.trim()){ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">うまく聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
+    if(!text||!text.trim()||isLikelyNoise(text)){ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">うまく聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
     recState='idle'; $('micBtn').textContent='🎤 話す';
     pendingBlob=blob; pendingType=type;
     if(confirmOn()){ showConfirmBox(text.trim()); }   // 確認してから送る
@@ -985,6 +1001,11 @@ function renderSummary(sum){
   $('convo').appendChild(d);
   $('convo').appendChild(makeQACard());
   $('convo').appendChild(makePracticePanel(sessionWeakWords));
+  // 画面最下部にも「戻る」ボタン（質問で上のボタンが見つけにくくなるため）
+  const btm=document.createElement('button'); btm.className='btn-primary'; btm.style.width='100%'; btm.style.margin='4px 0 8px';
+  btm.textContent='🏠 最初の画面に戻る';
+  btm.onclick=()=>location.reload();
+  $('convo').appendChild(btm);
   scrollDown();
 }
 function showError(e){
