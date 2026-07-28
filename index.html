@@ -421,17 +421,45 @@ $('sitMic').onclick=()=>{
 
 // ---- 音声合成（読み上げ） ----
 let ttsPlaying=false;
-let partnerVoiceGender='';   // 場面に応じた相手の声（'female'=カフェなど）
+const V_FEM=/(samantha|victoria|karen|moira|tessa|fiona|susan|allison|ava|serena|zira|nicky|joelle|jenny|aria|female|women|veena|catherine|kate|linda)/i;
+const V_MAL=/(daniel|rishi|alex|aaron|fred|david|thomas|arthur|oliver|gordon|guy|male|\bman\b|albert|reed|eddy|rocko)/i;
+// 場面ごとの音声セット（名前＋言語＋性別）。名前が無い端末では言語・性別でフォールバック
+const V_DANIEL={name:'Daniel',lang:'en-GB',gender:'male'};
+const V_RISHI ={name:'Rishi', lang:'en-IN',gender:'male'};
+const V_TESSA ={name:'Tessa', lang:'en-ZA',gender:'female'};
+const V_SAM   ={name:'Samantha',lang:'en-US',gender:'female'};
+const VOICE_SETS={
+  grab:[V_DANIEL, V_RISHI],                       // GRAB＝男性2種からランダム
+  cafe:[V_TESSA, V_SAM],                          // カフェ＝女性2種からランダム
+  _default:[V_DANIEL, V_RISHI, V_TESSA, V_SAM]    // その他＝上記4種からランダム
+};
+let sessionVoiceSpec=null;   // 今のセッションで使う音声
+function pickVoiceSpec(cat){ const arr=VOICE_SETS[cat]||VOICE_SETS._default; return arr[Math.floor(Math.random()*arr.length)]; }
 function pickVoice(gender){
   const vs=speechSynthesis.getVoices()||[];
   const en=vs.filter(v=>/^en/i.test(v.lang));
   const enUS=en.filter(v=>/en[-_]US/i.test(v.lang));
   const pool=enUS.length?enUS:en;
-  const female=/(samantha|victoria|karen|moira|tessa|fiona|susan|allison|ava|serena|zira|nicky|joelle|jenny|aria|female|women)/i;
-  const male=/(alex|daniel|fred|david|aaron|thomas|arthur|rishi|oliver|gordon|guy|male|\bman\b)/i;
-  if(gender==='female'){ const f=pool.find(v=>female.test(v.name))||en.find(v=>female.test(v.name)); if(f) return f; }
-  if(gender==='male'){ const m=pool.find(v=>male.test(v.name))||en.find(v=>male.test(v.name)); if(m) return m; }
+  if(gender==='female'){ const f=pool.find(v=>V_FEM.test(v.name))||en.find(v=>V_FEM.test(v.name)); if(f) return f; }
+  if(gender==='male'){ const m=pool.find(v=>V_MAL.test(v.name))||en.find(v=>V_MAL.test(v.name)); if(m) return m; }
   return pool[0]||en[0]||null;
+}
+// 指定音声を解決。無い端末では 同言語+性別 → 性別 → 既定 の順でフォールバック
+function resolveVoice(spec){
+  const vs=speechSynthesis.getVoices()||[];
+  const norm=s=>(s||'').replace('_','-').toLowerCase();
+  if(spec){
+    let v=vs.find(x=>x.name.toLowerCase()===spec.name.toLowerCase()); if(v) return v;
+    v=vs.find(x=>x.name.toLowerCase().includes(spec.name.toLowerCase())); if(v) return v;
+    const g=spec.gender==='female'?V_FEM:spec.gender==='male'?V_MAL:null;
+    if(spec.lang){
+      const sameLang=vs.filter(x=>norm(x.lang)===norm(spec.lang));
+      if(g){ const gg=sameLang.find(x=>g.test(x.name)); if(gg) return gg; }
+      if(sameLang.length) return sameLang[0];
+    }
+    return pickVoice(spec.gender||'');
+  }
+  return pickVoice('');
 }
 function unlockTTS(){ try{ const u=new SpeechSynthesisUtterance(''); speechSynthesis.speak(u); }catch(e){} }
 function speak(text,onDone,rateOverride){
@@ -441,8 +469,8 @@ function speak(text,onDone,rateOverride){
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
     u.lang='en-US'; u.rate=rateOverride||parseFloat($('rate').value)||0.95;
-    const v=pickVoice(partnerVoiceGender);
-    if(v) u.voice=v;
+    const v=resolveVoice(sessionVoiceSpec);
+    if(v){ u.voice=v; if(v.lang) u.lang=v.lang; }
     u.onend=finish; u.onerror=finish;
     speechSynthesis.speak(u);
     setTimeout(finish, Math.max(1500, text.split(/\s+/).length*380/(u.rate||1))+800);
@@ -724,7 +752,7 @@ async function startConversation(sit, cat){
   unlockTTS();
   $('startBtn').disabled=true;
   const flavor=pickVariation(cat);
-  partnerVoiceGender=(cat==='cafe')?'female':'';   // カフェは若い女性店員の声
+  sessionVoiceSpec=pickVoiceSpec(cat);   // 場面ごとに音声をランダム選択（GRAB=男性/カフェ=女性/他=4種）
   messages=[{role:'user',content:'練習したい場面: '+sit+
     '\n\n【今回のセブ設定（相手役はこの設定で自然に振る舞う。固有名詞は並べすぎず1〜2個を自然に）】\n'+flavor+
     '\n\nこの設定の相手役として、あなたから会話を始めてください。'}];
