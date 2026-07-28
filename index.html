@@ -142,6 +142,8 @@
   .corr .cmt{font-size:14px;margin:8px 2px}
   .qalog .msg.user{margin-left:0}
   .qain{margin-top:10px}
+  .corr-num{display:inline-block;background:var(--sea2);color:#fff;border-radius:20px;min-width:44px;text-align:center;
+    font-weight:800;font-size:12px;padding:2px 10px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -795,8 +797,8 @@ function buildQAContext(){
   if(lastSummary){
     if(lastSummary.good) s+='\n【良かった点】'+lastSummary.good;
     if(lastSummary.corrections&&lastSummary.corrections.length){
-      s+='\n\n【発話ごとの添削】';
-      lastSummary.corrections.forEach((c,i)=>{ s+='\n'+(i+1)+'. 私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
+      s+='\n\n【発話ごとの添削（ユーザーは「ラリー番号」で指定して質問することがあります）】';
+      lastSummary.corrections.forEach((c,i)=>{ s+='\nラリー'+(i+1)+'：私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
     }
     if(lastSummary.points&&lastSummary.points.length){
       s+='\n\n【改善テーマ】';
@@ -828,11 +830,20 @@ async function askAboutFeedback(q){
 function makeQACard(){
   const card=document.createElement('div'); card.className='card sys';
   card.innerHTML='<h3 style="margin:0 0 6px;color:var(--palm)">💬 添削について質問する</h3>'+
-    '<div class="hint" style="margin-top:0">「なぜこの言い方？」「別の表現は？」など、日本語で質問できます。</div>'+
+    '<div class="hint" style="margin-top:0">「なぜこの言い方？」「別の表現は？」など、日本語で質問できます。「ラリー3の…」のように番号で指定してもOK。</div>'+
     '<div class="qalog" style="margin-top:10px"></div>'+
-    '<textarea class="qain" placeholder="例）&quot;a bit&quot; と &quot;a little&quot; はどう違う？"></textarea>'+
-    '<button class="btn-primary qask" style="width:100%;margin-top:8px">質問する</button>';
-  const log=card.querySelector('.qalog'), ta=card.querySelector('.qain'), btn=card.querySelector('.qask');
+    '<textarea class="qain" placeholder="例）ラリー3のおすすめの文、a bit と a little はどう違う？"></textarea>'+
+    '<div class="row" style="margin-top:8px">'+
+      '<div style="flex:0 0 auto"><button class="btn-ghost btn-sm qamic" type="button">🎤 音声で入力</button></div>'+
+      '<div style="flex:1"><button class="btn-primary qask" style="width:100%">質問する</button></div>'+
+    '</div>';
+  const log=card.querySelector('.qalog'), ta=card.querySelector('.qain'), btn=card.querySelector('.qask'), mic=card.querySelector('.qamic');
+  mic.onclick=()=>{
+    if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
+    mic.textContent='🔴 話してください...'; mic.disabled=true;
+    recognizeJa(t=>{ mic.textContent='🎤 音声で入力'; mic.disabled=false;
+      if(t){ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} } });
+  };
   const ask=async()=>{
     const q=(ta.value||'').trim(); if(!q) return;
     ta.value=''; btn.disabled=true;
@@ -857,6 +868,14 @@ function makeQACard(){
 
 function renderSummary(sum){
   lastSummary=sum; qaMessages=[];
+  // まとめ表示時は、これまでのやり取りの英文を隠さず表示（答え合わせ感）。和訳は隠したまま。
+  try{
+    document.querySelectorAll('#convo .msg.partner').forEach(m=>{
+      const en=m.querySelector('.en'); if(en) en.classList.remove('hidden');
+      const lis=m.querySelector('.listen'); if(lis) lis.style.display='none';
+      const be=m.querySelector('.tEn'); if(be) be.classList.add('on');
+    });
+  }catch(e){}
   const d=document.createElement('div'); d.className='card sys';
   let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り＆添削</h3>';
   if(sum){
@@ -880,11 +899,13 @@ function renderSummary(sum){
   // 添削カードを組み立て（🔊で正しい英語を聞ける）
   if(sum&&sum.corrections&&sum.corrections.length){
     const wrap=d.querySelector('.corrwrap');
-    sum.corrections.forEach(c=>{
+    sum.corrections.forEach((c,i)=>{
+      const n=i+1;
       const lv=c.level||'mid';
       const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
       const cc=document.createElement('div'); cc.className='corr';
-      cc.innerHTML='<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
+      cc.innerHTML='<div><span class="corr-num">ラリー '+n+'</span></div>'+
+        '<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
         '<div class="cmt">💬 '+escapeHtml(c.comment)+'</div>'+
         '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span><div class="en">'+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
       cc.querySelector('.speak').onclick=()=>speak(c.better||'');
