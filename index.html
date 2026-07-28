@@ -218,14 +218,14 @@
   <div class="card" id="setupCard">
     <label>場面を選んでタップ</label>
     <div class="presets">
-      <button class="preset" data-sit="空港のチェックインカウンターで、航空会社の係員と搭乗手続きをする（預け荷物・座席・搭乗ゲートなど）">✈️<span>空港チェックイン</span></button>
-      <button class="preset" data-sit="リゾートホテルのフロントでチェックインする（予約確認・部屋・朝食の時間・Wi-Fiなど）">🏨<span>ホテルチェックイン</span></button>
-      <button class="preset" data-sit="レストランに入店し、店員と人数や席についてやり取りして案内してもらう">🍽️<span>レストラン入店</span></button>
-      <button class="preset" data-sit="カフェに入り、店員におすすめを聞いてドリンクやフードを注文する">☕<span>カフェ入店</span></button>
-      <button class="preset" data-sit="旅行先で出会った現地の友達と、日常的な雑談をする">🧑‍🤝‍🧑<span>友達と日常会話</span></button>
-      <button class="preset" data-sit="お土産屋さんで店員に商品について尋ねたり値段を聞いたりして買い物する">🎁<span>お土産屋さん</span></button>
-      <button class="preset" data-sit="【難易度: 初級・小学校〜中学校の教科書レベル】旅行先で出会った人とごく簡単な英語で日常会話をする（自己紹介・出身・趣味・好きな食べ物・天気など）。相手は必ず短くやさしい文で、ゆっくり一文ずつ話す。">🔰<span>初級英会話</span></button>
-      <button class="preset" data-sit="配車アプリ「Grab」で手配したタクシーの場面。あなたはGrabドライバー役。到着前に電話やチャットで、現在地・目印・待ち合わせ場所・目的地・人数・荷物・支払い方法などをユーザーに確認し、乗車後は目的地までの簡単なやり取り（ルート確認・エアコン・所要時間・料金など）をする。">🚕<span>GRABタクシー</span></button>
+      <button class="preset" data-cat="air" data-sit="空港のチェックインカウンターで、航空会社の係員と搭乗手続きをする（預け荷物・座席・搭乗ゲートなど）">✈️<span>空港チェックイン</span></button>
+      <button class="preset" data-cat="hotel" data-sit="リゾートホテルのフロントでチェックインする（予約確認・部屋・朝食の時間・Wi-Fiなど）">🏨<span>ホテルチェックイン</span></button>
+      <button class="preset" data-cat="restaurant" data-sit="レストランに入店し、店員と人数や席についてやり取りして案内してもらう">🍽️<span>レストラン入店</span></button>
+      <button class="preset" data-cat="cafe" data-sit="カフェに入り、店員におすすめを聞いてドリンクやフードを注文する">☕<span>カフェ入店</span></button>
+      <button class="preset" data-cat="friend" data-sit="旅行先で出会った現地の友達と、日常的な雑談をする">🧑‍🤝‍🧑<span>友達と日常会話</span></button>
+      <button class="preset" data-cat="souvenir" data-sit="お土産屋さんで店員に商品について尋ねたり値段を聞いたりして買い物する">🎁<span>お土産屋さん</span></button>
+      <button class="preset" data-cat="beginner" data-sit="【難易度: 初級・小学校〜中学校の教科書レベル】旅行先で出会った人とごく簡単な英語で日常会話をする（自己紹介・出身・趣味・好きな食べ物・天気など）。相手は必ず短くやさしい文で、ゆっくり一文ずつ話す。">🔰<span>初級英会話</span></button>
+      <button class="preset" data-cat="grab" data-sit="配車アプリ「Grab」で手配したタクシーの場面。あなたはGrabドライバー役。到着前に電話やチャットで、現在地・目印・待ち合わせ場所・目的地・人数・荷物・支払い方法などをユーザーに確認し、乗車後は目的地までの簡単なやり取り（ルート確認・エアコン・所要時間・料金など）をする。">🚕<span>GRABタクシー</span></button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
       <label style="margin:0">その他（自由に入力）</label>
@@ -284,7 +284,70 @@ const SYSTEM = `あなたは日本人の英語学習者のための「旅行英�
 - direction_ja: ユーザーが次に英語で言うべき事の短い日本語ヒント。
 - done: 会話を4〜6ラリー続けたら true にして締める。
 【重要】ユーザーの入力は英語の発話を音声認識で文字起こししたテキストです。不完全・崩れている・一部日本語でも、決して「英語で話してください」等と会話を止めないこと。最も近い意図を推測し、相手役として自然に会話を続ける。
-【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。`;
+【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。
+【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。`;
+
+// ===== セッションごとのバリエーション（セブの実在スポット＋相手のキャラ変化） =====
+const VARIATIONS={
+  hotel:[
+    'あなたはシャングリラ・マクタン(Shangri-La Mactan)のフロント係。今日は満室気味で忙しいが丁寧。朝食会場やプライベートビーチを案内する。',
+    'あなたはドゥシタニ・マクタン(Dusit Thani Mactan Cebu)のフロント係。フレンドリーで、スパやプールの利用を勧めたい。',
+    'あなたはクリムゾン・リゾート(Crimson Resort and Spa Mactan)のフロント係。名物のインフィニティプールやアイランドホッピングを提案する。',
+    'あなたはラディソン・ブル・セブ(Radisson Blu Cebu)のフロント係。隣接するSMシティ・セブへの行き方も案内できる。',
+    'あなたはウォーターフロント・セブ(Waterfront Cebu City Hotel)のフロント係。丁寧だが少し事務的。Wi-Fiや朝食時間を伝える。'
+  ],
+  restaurant:[
+    'あなたはセブ名物レチョンの人気店ズブチョン(Zubuchon)の店員。名物のレチョンやセブ料理を勧める。アンソニー・ボーディンで有名。',
+    'あなたはリコス・レチョン(Rico\'s Lechon)の店員。名物のスパイシー・レチョンを勧める。今日は少し混んでいる。',
+    'あなたはハウス・オブ・レチョン(House of Lechon)の店員。落ち着いた雰囲気で、フィリピン料理も色々ある。',
+    'あなたはシーフード食堂ランタウ(Lantaw)の店員。海を見ながら食べる地元の魚介やグリルを勧める。',
+    'あなたは屋台街ラルシアン(Larsian)のBBQ店員。串焼きとプソ(ハンギングライス)を勧める。気さくで早口。'
+  ],
+  cafe:[
+    'あなたはアバカ・ベイキング(Abaca Baking Company)の店員。人気のペストリーやブラックコーヒーを勧める。朝で少し行列。',
+    'あなたはタイトロープ・コーヒー(Tightrope Coffee)の店員。サードウェーブの本格コーヒーに詳しく、豆の説明が好き。',
+    'あなたはザ・チョコレート・チェンバー(The Chocolate Chamber)の店員。地元カカオのドリンクやスイーツを勧める。',
+    'あなたはITパークのカフェ店員。フレンドリーで、テイクアウトかイートインかを聞く。少し忙しい。'
+  ],
+  friend:[
+    'あなたはセブ在住の現地の友達。週末にマゼラン・クロスやサントニーニョ教会、テンプル・オブ・リアへ行く相談をする。',
+    'あなたはセブの友達。カワサン滝(Kawasan Falls)のキャニオニングやオスロブ(Oslob)のジンベイザメを一緒に計画したい。',
+    'あなたはセブの友達。地元グルメ(ラルシアンのBBQ、レチョン、ドライマンゴー)の話で盛り上がる。',
+    'あなたはセブの友達。シラオ・フラワーガーデンやトップス展望台(Tops)の夜景の話をしたい。',
+    'あなたはセブの友達。今日は天気やお互いの近況など、のんびり雑談したい気分。'
+  ],
+  souvenir:[
+    'あなたはお土産屋の店員。名物の7Dドライマンゴーやプロフード(Profood)のマンゴーを勧める。',
+    'あなたはお土産屋の店員。オタップ(Shamrockのotap)やロスキージョス(Titay\'s)など焼き菓子を勧める。',
+    'あなたはマクタンのギター工房の店員。セブ名産の手作りギターを紹介する。試し弾きも勧める。',
+    'あなたは空港のお土産センター(Airport Pasalubong Center)の店員。定番みやげを手早く案内する。搭乗前で急ぎ気味。'
+  ],
+  air:[
+    'あなたはマクタン・セブ国際空港(Mactan-Cebu International Airport)のセブパシフィック航空チェックインカウンター係。搭乗手続きをする。',
+    'あなたはマクタン・セブ国際空港のフィリピン航空(Philippine Airlines)の係員。少し混雑気味で手際よく案内する。',
+    'あなたは空港の係員。預け荷物の重量オーバーや座席の希望など、少しイレギュラーなやり取りをする。'
+  ],
+  beginner:[
+    'あなたはセブで出会った親切な人。中学英語レベルの短い文で、名前・出身・好きな食べ物(マンゴーなど)をゆっくり一文ずつ聞く。',
+    'あなたはセブのやさしい店員。初級英語で、天気やこれからどこへ行くか(ビーチ、モール)を短く尋ねる。',
+    'あなたはセブで知り合った同年代の人。趣味や旅行の予定を、やさしい英語で少しずつ話す。'
+  ],
+  grab:[
+    'あなたはGrabドライバー。マクタン・セブ国際空港からホテルへ向かう。現在地・目印・目的地を確認し、渋滞や所要時間の話をする。',
+    'あなたはGrabドライバー。アヤラ・センター・セブ(Ayala Center Cebu)やSMシティ・セブへ移動。近道を提案したり観光地を教えたりする。',
+    'あなたはGrabドライバー。トップス展望台(Tops)やテンプル・オブ・リアなど高台の観光地へ。道が細いので待ち合わせ場所を確認する。',
+    'あなたはGrabドライバー。支払い方法(現金かGrabPay)や人数・荷物を確認する。今日は少し雨で渋滞している。'
+  ],
+  _generic:[
+    'この会話はセブ島(Cebu)が舞台。相手役として、必要ならアヤラ・センター・セブやSMシーサイド、マゼラン・クロスなどセブの実在スポットを自然に織り交ぜる。',
+    'この会話はセブ島(Cebu)が舞台。カワサン滝やオスロブ、レチョン、ドライマンゴーなどセブらしい話題を自然に取り入れる。',
+    'この会話はセブ島(Cebu)が舞台。マクタン島のビーチリゾートやアイランドホッピングなど、南国リゾートの雰囲気を出す。'
+  ]
+};
+function pickVariation(cat){
+  const arr=(cat&&VARIATIONS[cat])?VARIATIONS[cat]:VARIATIONS._generic;
+  return arr[Math.floor(Math.random()*arr.length)];
+}
 
 let messages = [];
 let keepGoing = false;        // 「続ける」で会話を延長
@@ -319,7 +382,7 @@ function phraseList(){ return ($('phrases').value||'').split(',').map(s=>s.trim(
 $('model').addEventListener('change',e=>localStorage.setItem('te_model',e.target.value));
 $('rate').addEventListener('change',e=>localStorage.setItem('te_rate',e.target.value));
 
-document.querySelectorAll('.preset').forEach(b=>{ b.onclick=()=>startConversation(b.getAttribute('data-sit')); });
+document.querySelectorAll('.preset').forEach(b=>{ b.onclick=()=>startConversation(b.getAttribute('data-sit'), b.getAttribute('data-cat')); });
 $('practiceBtn').onclick=()=>{ if(!$('practiceHome').hasChildNodes()) $('practiceHome').appendChild(makePracticePanel([])); $('practiceHome').scrollIntoView({behavior:'smooth'}); };
 $('sitMic').onclick=()=>{
   if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
@@ -599,12 +662,15 @@ function escapeHtml(s){ if(s==null) return ''; if(typeof s!=='string') s=(typeof
 function scrollDown(){ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
 
 // ---- 会話開始 ----
-$('startBtn').onclick=()=>startConversation($('situation').value.trim());
-async function startConversation(sit){
+$('startBtn').onclick=()=>startConversation($('situation').value.trim(), null);
+async function startConversation(sit, cat){
   if(!sit){ alert('場面を選ぶか、自由入力してください。'); return; }
   unlockTTS();
   $('startBtn').disabled=true;
-  messages=[{role:'user',content:'練習したい場面: '+sit+'\n\nこの場面の相手役として、あなたから会話を始めてください。'}];
+  const flavor=pickVariation(cat);
+  messages=[{role:'user',content:'練習したい場面: '+sit+
+    '\n\n【今回のセブ設定（相手役はこの設定で自然に振る舞う。固有名詞は並べすぎず1〜2個を自然に）】\n'+flavor+
+    '\n\nこの設定の相手役として、あなたから会話を始めてください。'}];
   userTurns=[]; sessionWeakWords=[]; keepGoing=false;
   const load=loadingEl('相手が準備中...'); $('convo').appendChild(load);
   try{
