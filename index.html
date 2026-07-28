@@ -134,6 +134,10 @@
   .corr-tag{display:inline-block;font-size:11px;font-weight:800;border-radius:20px;padding:2px 10px;margin-bottom:6px}
   .corr-tag.you{background:#ffe0d8;color:#c23a1f}
   .corr-tag.rec{background:#c9f2df;color:#0c7a54}
+  .corr-tag.q{background:#cfeef6;color:#1a93b4}
+  .corr-q{background:rgba(143,224,242,.22);border:1px solid rgba(40,182,204,.4);border-left:4px solid var(--sea);border-radius:12px;padding:9px 11px;margin-bottom:8px}
+  .corr-q .en{font-size:15px;color:#0c3a46}
+  .corr-q .ja{font-size:13px;color:var(--muted);margin-top:3px}
   .corr-you{background:rgba(255,150,120,.14);border:1px solid rgba(242,89,60,.3);border-left:4px solid var(--coral);border-radius:12px;padding:9px 11px}
   .corr-you .t{font-size:15px;color:var(--ink)}
   .corr-rec{background:rgba(31,169,138,.12);border:1px solid rgba(31,169,138,.35);border-left:4px solid var(--palm);border-radius:12px;padding:9px 11px;margin-top:8px}
@@ -285,7 +289,8 @@ const SYSTEM = `あなたは日本人の英語学習者のための「旅行英�
 - done: 会話を4〜6ラリー続けたら true にして締める。
 【重要】ユーザーの入力は英語の発話を音声認識で文字起こししたテキストです。不完全・崩れている・一部日本語でも、決して「英語で話してください」等と会話を止めないこと。最も近い意図を推測し、相手役として自然に会話を続ける。
 【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。
-【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。`;
+【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。
+【呼びかけ】ユーザー（学習者）は50歳前後の男性です。相手役がユーザーに呼びかける時は "Sir" を用い、"Ma'am" や "Miss" は絶対に使わないこと。`;
 
 // ===== セッションごとのバリエーション（セブの実在スポット＋相手のキャラ変化） =====
 const VARIATIONS={
@@ -304,10 +309,10 @@ const VARIATIONS={
     'あなたは屋台街ラルシアン(Larsian)のBBQ店員。串焼きとプソ(ハンギングライス)を勧める。気さくで早口。'
   ],
   cafe:[
-    'あなたはアバカ・ベイキング(Abaca Baking Company)の店員。人気のペストリーやブラックコーヒーを勧める。朝で少し行列。',
-    'あなたはタイトロープ・コーヒー(Tightrope Coffee)の店員。サードウェーブの本格コーヒーに詳しく、豆の説明が好き。',
-    'あなたはザ・チョコレート・チェンバー(The Chocolate Chamber)の店員。地元カカオのドリンクやスイーツを勧める。',
-    'あなたはITパークのカフェ店員。フレンドリーで、テイクアウトかイートインかを聞く。少し忙しい。'
+    'あなたはアバカ・ベイキング(Abaca Baking Company)の若い女性店員。明るく親しみやすい話し方で、人気のペストリーやブラックコーヒーを勧める。朝で少し行列。',
+    'あなたはタイトロープ・コーヒー(Tightrope Coffee)の若い女性店員。感じよく、サードウェーブの本格コーヒーや豆について丁寧に説明する。',
+    'あなたはザ・チョコレート・チェンバー(The Chocolate Chamber)の若い女性店員。にこやかに、地元カカオのドリンクやスイーツを勧める。',
+    'あなたはITパークのカフェの若い女性店員。フレンドリーで、テイクアウトかイートインかを聞く。少し忙しいが愛想が良い。'
   ],
   friend:[
     'あなたはセブ在住の現地の友達。週末にマゼラン・クロスやサントニーニョ教会、テンプル・オブ・リアへ行く相談をする。',
@@ -355,6 +360,7 @@ let sessionWeakWords = [];    // 会話全体で発音が弱かった単語
 let userTurns = [];           // 各ユーザー発話 { en, pa }
 let lastSummary = null;       // 直近のまとめ（添削への質問で参照）
 let qaMessages = [];          // 添削への質問のやり取り
+let curQ = null;              // ユーザーが今答えている「設問」（相手のセリフ）{en,ja}
 
 // ---- 設定の保存/復元 ----
 (function restore(){
@@ -393,6 +399,18 @@ $('sitMic').onclick=()=>{
 
 // ---- 音声合成（読み上げ） ----
 let ttsPlaying=false;
+let partnerVoiceGender='';   // 場面に応じた相手の声（'female'=カフェなど）
+function pickVoice(gender){
+  const vs=speechSynthesis.getVoices()||[];
+  const en=vs.filter(v=>/^en/i.test(v.lang));
+  const enUS=en.filter(v=>/en[-_]US/i.test(v.lang));
+  const pool=enUS.length?enUS:en;
+  const female=/(samantha|victoria|karen|moira|tessa|fiona|susan|allison|ava|serena|zira|nicky|joelle|jenny|aria|female|women)/i;
+  const male=/(alex|daniel|fred|david|aaron|thomas|arthur|rishi|oliver|gordon|guy|male|\bman\b)/i;
+  if(gender==='female'){ const f=pool.find(v=>female.test(v.name))||en.find(v=>female.test(v.name)); if(f) return f; }
+  if(gender==='male'){ const m=pool.find(v=>male.test(v.name))||en.find(v=>male.test(v.name)); if(m) return m; }
+  return pool[0]||en[0]||null;
+}
 function unlockTTS(){ try{ const u=new SpeechSynthesisUtterance(''); speechSynthesis.speak(u); }catch(e){} }
 function speak(text,onDone,rateOverride){
   let done=false; ttsPlaying=true;
@@ -401,7 +419,7 @@ function speak(text,onDone,rateOverride){
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
     u.lang='en-US'; u.rate=rateOverride||parseFloat($('rate').value)||0.95;
-    const v=speechSynthesis.getVoices().find(v=>/en(-|_)US/i.test(v.lang))||speechSynthesis.getVoices().find(v=>/^en/i.test(v.lang));
+    const v=pickVoice(partnerVoiceGender);
     if(v) u.voice=v;
     u.onend=finish; u.onerror=finish;
     speechSynthesis.speak(u);
@@ -684,14 +702,16 @@ async function startConversation(sit, cat){
   unlockTTS();
   $('startBtn').disabled=true;
   const flavor=pickVariation(cat);
+  partnerVoiceGender=(cat==='cafe')?'female':'';   // カフェは若い女性店員の声
   messages=[{role:'user',content:'練習したい場面: '+sit+
     '\n\n【今回のセブ設定（相手役はこの設定で自然に振る舞う。固有名詞は並べすぎず1〜2個を自然に）】\n'+flavor+
     '\n\nこの設定の相手役として、あなたから会話を始めてください。'}];
-  userTurns=[]; sessionWeakWords=[]; keepGoing=false;
+  userTurns=[]; sessionWeakWords=[]; keepGoing=false; curQ=null;
   const load=loadingEl('相手が準備中...'); $('convo').appendChild(load);
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
+    curQ={en:obj.partner_line, ja:obj.partner_line_ja||''};
     load.remove();
     $('setupCard').classList.add('hidden'); $('practiceHome').innerHTML=''; hideManualBox();
     setDirection(obj.direction_ja||'英語で返答してください');
@@ -707,7 +727,7 @@ async function submitAnswer(ans, paPromise){
   ans=(ans||'').trim();
   if(!ans){ alert('英語で話すか入力してください。'); return; }
   renderUser(ans); hideManualBox();
-  const turn={ en:ans, pa:null };
+  const turn={ en:ans, pa:null, q_en:(curQ&&curQ.en)||'', q_ja:(curQ&&curQ.ja)||'' };
   userTurns.push(turn);
   // 発音採点はバックグラウンドで受け取り、弱点単語だけ蓄積（会話は待たせない）
   if(paPromise){ paPromise.then(pa=>{ if(pa){ turn.pa=pa; collectWeak(pa); } }); }
@@ -717,6 +737,7 @@ async function submitAnswer(ans, paPromise){
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
+    curQ={en:obj.partner_line, ja:obj.partner_line_ja||''};   // 次に答える設問
     load.remove();
     if(obj.done){
       renderPartner(obj);
@@ -880,7 +901,7 @@ function buildQAContext(){
     if(lastSummary.good) s+='\n【良かった点】'+lastSummary.good;
     if(lastSummary.corrections&&lastSummary.corrections.length){
       s+='\n\n【発話ごとの添削（ユーザーは「ラリー番号」で指定して質問することがあります）】';
-      lastSummary.corrections.forEach((c,i)=>{ s+='\nラリー'+(i+1)+'：私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
+      lastSummary.corrections.forEach((c,i)=>{ const t=userTurns[i]||{}; s+='\nラリー'+(i+1)+'：相手の問いかけ: "'+(t.q_en||'')+'" / 私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
     }
     if(lastSummary.points&&lastSummary.points.length){
       s+='\n\n【改善テーマ】';
@@ -983,14 +1004,18 @@ function renderSummary(sum){
     const wrap=d.querySelector('.corrwrap');
     sum.corrections.forEach((c,i)=>{
       const n=i+1;
+      const t=userTurns[i]||{};
       const lv=c.level||'mid';
       const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
       const cc=document.createElement('div'); cc.className='corr';
+      const qBlock=(t.q_en)?('<div class="corr-q"><span class="corr-tag q">🧑 相手の問いかけ</span><div class="en">'+escapeHtml(t.q_en)+' <button class="speak qspk">🔊</button></div><div class="ja">'+escapeHtml(t.q_ja||'')+'</div></div>'):'';
       cc.innerHTML='<div><span class="corr-num">ラリー '+n+'</span></div>'+
+        qBlock+
         '<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
         '<div class="cmt">💬 '+escapeHtml(c.comment)+'</div>'+
         '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span><div class="en">'+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
-      cc.querySelector('.speak').onclick=()=>speak(c.better||'');
+      const qb=cc.querySelector('.qspk'); if(qb) qb.onclick=()=>speak(t.q_en||'');
+      cc.querySelector('.speak:not(.qspk)').onclick=()=>speak(c.better||'');
       wrap.appendChild(cc);
     });
   }
@@ -1006,7 +1031,8 @@ function renderSummary(sum){
   btm.textContent='🏠 最初の画面に戻る';
   btm.onclick=()=>location.reload();
   $('convo').appendChild(btm);
-  scrollDown();
+  // 一番下ではなく「今回の振り返り＆添削」の見出しから表示する
+  setTimeout(()=>{ try{ d.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ scrollDown(); } }, 60);
 }
 function showError(e){
   const msg=e&&e.message||'';
