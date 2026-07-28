@@ -130,12 +130,18 @@
   .drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .dresult{margin-top:10px}
   .wchip.pick{cursor:pointer} .wchip.pick:hover{background:#ffcdbf}
-  .corr{border:1px solid rgba(247,201,120,.55);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,.55)}
-  .corr .orig{font-size:14px;color:var(--muted)}
-  .corr .cmt{font-size:14px;margin-top:6px}
-  .corr .bt{background:rgba(31,169,138,.1);border:1px solid rgba(31,169,138,.28);border-radius:10px;padding:8px 10px;margin-top:8px}
-  .corr .bt .en{font-size:15px;color:#0d6e5a;font-weight:600}
-  .corr .bt .ja{font-size:13px;color:var(--muted);margin-top:3px}
+  .corr{border:1px solid rgba(247,201,120,.55);border-radius:14px;padding:12px;margin-bottom:12px;background:rgba(255,255,255,.5)}
+  .corr-tag{display:inline-block;font-size:11px;font-weight:800;border-radius:20px;padding:2px 10px;margin-bottom:6px}
+  .corr-tag.you{background:#ffe0d8;color:#c23a1f}
+  .corr-tag.rec{background:#c9f2df;color:#0c7a54}
+  .corr-you{background:rgba(255,150,120,.14);border:1px solid rgba(242,89,60,.3);border-left:4px solid var(--coral);border-radius:12px;padding:9px 11px}
+  .corr-you .t{font-size:15px;color:var(--ink)}
+  .corr-rec{background:rgba(31,169,138,.12);border:1px solid rgba(31,169,138,.35);border-left:4px solid var(--palm);border-radius:12px;padding:9px 11px;margin-top:8px}
+  .corr-rec .en{font-size:15px;color:#0d6e5a;font-weight:700}
+  .corr-rec .ja{font-size:13px;color:var(--muted);margin-top:3px}
+  .corr .cmt{font-size:14px;margin:8px 2px}
+  .qalog .msg.user{margin-left:0}
+  .qain{margin-top:10px}
 </style>
 </head>
 <body>
@@ -282,6 +288,8 @@ let messages = [];
 let keepGoing = false;        // 「続ける」で会話を延長
 let sessionWeakWords = [];    // 会話全体で発音が弱かった単語
 let userTurns = [];           // 各ユーザー発話 { en, pa }
+let lastSummary = null;       // 直近のまとめ（添削への質問で参照）
+let qaMessages = [];          // 添削への質問のやり取り
 
 // ---- 設定の保存/復元 ----
 (function restore(){
@@ -781,7 +789,74 @@ function recognizeJa(cb){
     ()=>{ cb(''); try{r.close();}catch(e){} });
 }
 
+// ===== 添削についての質問（日本語で聞ける） =====
+function buildQAContext(){
+  let s='以下は私（日本人の英語学習者）の旅行英会話練習の添削結果です。この内容について日本語で質問します。日本語でわかりやすく簡潔に答えてください。英語の例を出すときは英文も添えてください。\n';
+  if(lastSummary){
+    if(lastSummary.good) s+='\n【良かった点】'+lastSummary.good;
+    if(lastSummary.corrections&&lastSummary.corrections.length){
+      s+='\n\n【発話ごとの添削】';
+      lastSummary.corrections.forEach((c,i)=>{ s+='\n'+(i+1)+'. 私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
+    }
+    if(lastSummary.points&&lastSummary.points.length){
+      s+='\n\n【改善テーマ】';
+      lastSummary.points.forEach(p=>{ s+='\n・'+p.title+'：'+p.detail; });
+    }
+  }else{
+    s+='\n（詳しい添削データはありませんが、旅行英会話全般の質問として答えてください）';
+  }
+  return s;
+}
+async function askAboutFeedback(q){
+  const key=$('apiKey').value.trim();
+  if(!key) throw new Error('Anthropic APIキーが未設定です');
+  if(!qaMessages.length){ qaMessages.push({role:'user',content:buildQAContext()+'\n\n【質問】'+q}); }
+  else { qaMessages.push({role:'user',content:q}); }
+  const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({ model:$('model').value, max_tokens:800,
+      system:'あなたは日本人学習者のための親切な英語コーチです。旅行英会話の添削について、日本語で分かりやすく簡潔に答えます。専門用語は避け、必要なら英語の例文を添えます。',
+      messages:qaMessages })
+  });
+  if(!res.ok) throw new Error('QA '+res.status+': '+(await res.text()).slice(0,150));
+  const data=await res.json();
+  const txt=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n').trim();
+  qaMessages.push({role:'assistant',content:txt});
+  return txt||'（回答を取得できませんでした）';
+}
+function makeQACard(){
+  const card=document.createElement('div'); card.className='card sys';
+  card.innerHTML='<h3 style="margin:0 0 6px;color:var(--palm)">💬 添削について質問する</h3>'+
+    '<div class="hint" style="margin-top:0">「なぜこの言い方？」「別の表現は？」など、日本語で質問できます。</div>'+
+    '<div class="qalog" style="margin-top:10px"></div>'+
+    '<textarea class="qain" placeholder="例）&quot;a bit&quot; と &quot;a little&quot; はどう違う？"></textarea>'+
+    '<button class="btn-primary qask" style="width:100%;margin-top:8px">質問する</button>';
+  const log=card.querySelector('.qalog'), ta=card.querySelector('.qain'), btn=card.querySelector('.qask');
+  const ask=async()=>{
+    const q=(ta.value||'').trim(); if(!q) return;
+    ta.value=''; btn.disabled=true;
+    const qEl=document.createElement('div'); qEl.className='msg user';
+    qEl.innerHTML='<div class="who"><span>🙋 質問</span></div><div class="en">'+escapeHtml(q)+'</div>';
+    log.appendChild(qEl);
+    const load=loadingEl('コーチが考えています...'); log.appendChild(load);
+    try{
+      const a=await askAboutFeedback(q); load.remove();
+      const aEl=document.createElement('div'); aEl.className='fb'; aEl.style.margin='2px 0 12px';
+      aEl.innerHTML='<h4>🧑‍🏫 コーチの回答</h4><div style="font-size:14px;white-space:pre-wrap">'+escapeHtml(a)+'</div>';
+      log.appendChild(aEl);
+    }catch(e){ load.remove();
+      const er=document.createElement('div'); er.className='hint'; er.style.color='#c23a1f'; er.textContent='エラー: '+(e.message||''); log.appendChild(er);
+    }
+    btn.disabled=false; card.scrollIntoView({behavior:'smooth',block:'end'});
+  };
+  btn.onclick=ask;
+  ta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); ask(); } });
+  return card;
+}
+
 function renderSummary(sum){
+  lastSummary=sum; qaMessages=[];
   const d=document.createElement('div'); d.className='card sys';
   let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り＆添削</h3>';
   if(sum){
@@ -809,9 +884,9 @@ function renderSummary(sum){
       const lv=c.level||'mid';
       const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
       const cc=document.createElement('div'); cc.className='corr';
-      cc.innerHTML='<div class="orig">🗣 '+escapeHtml(c.original)+' '+badge+'</div>'+
-        '<div class="cmt">'+escapeHtml(c.comment)+'</div>'+
-        '<div class="bt"><div class="en">✅ '+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
+      cc.innerHTML='<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
+        '<div class="cmt">💬 '+escapeHtml(c.comment)+'</div>'+
+        '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span><div class="en">'+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
       cc.querySelector('.speak').onclick=()=>speak(c.better||'');
       wrap.appendChild(cc);
     });
@@ -821,6 +896,7 @@ function renderSummary(sum){
   btn.onclick=()=>location.reload();
   d.appendChild(btn);
   $('convo').appendChild(d);
+  $('convo').appendChild(makeQACard());
   $('convo').appendChild(makePracticePanel(sessionWeakWords));
   scrollDown();
 }
