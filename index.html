@@ -295,7 +295,9 @@ const SYSTEM = `あなたは日本人の英語学習者のための「旅行英�
 【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。
 【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。
 【呼びかけ】ユーザー（学習者）は50歳前後の男性です。"Ma'am" や "Miss" は絶対に使わないこと。"Sir" は、店員・ホテル・空港・タクシーなど接客やフォーマルな場面で丁寧に呼びかける必要がある時だけ、毎回連呼せず自然な頻度で使う。友達との雑談などカジュアルな場面では "Sir" を使わず、名前で呼ぶか呼びかけ無しで対等に話すこと。
-【両替レートの目安（2026年7月時点の実勢）】両替やレートの話題になったら、次を目安に現実的な数字で答えること：1 USD ≈ 約61〜62 PHP、1,000 JPY ≈ 約375〜380 PHP（1 PHP ≈ 約2.6〜2.7円）。ホテルでの両替は実勢よりやや悪いレート（数%低い）になるのが自然。`;
+【両替レートの目安（2026年7月時点の実勢）】両替やレートの話題になったら、次を目安に現実的な数字で答えること：1 USD ≈ 約61〜62 PHP、1,000 JPY ≈ 約375〜380 PHP（1 PHP ≈ 約2.6〜2.7円）。ホテルでの両替は実勢よりやや悪いレート（数%低い）になるのが自然。
+【リアルな手続き】実戦練習になるよう、その場面で実際に行われる手続きを省略せず自然に会話へ含めること。例：ホテルのチェックインでは宿泊登録カードへの署名やパスポート提示、デポジット/カード提示の案内など。空港のチェックインではパスポート提示、（超過手荷物のカード決済伝票などで）署名を求める場面など。カフェやお土産でもカード決済時の署名など。ただし毎ターン同じ要求を機械的に繰り返すのではなく、会話の自然な流れの中で1つずつ求めること。
+【フィリピン英語の言い回し】接客表現はフィリピン（セブ）で実際に使われる言い方に寄せること。特に署名を求めるときは、動詞 "sign" ではなく名詞 "signature" を使うのが現地では自然（例："Signature here, sir." / "May I have your signature, sir?" / "Kindly affix your signature here, sir." / "Signature, please."）。その他も "Kindly ..." を丁寧に使う、トイレは "comfort room / CR" と呼ぶ、"for here or take out?" など、フィリピン英語らしい自然な表現を適度に取り入れる。`;
 
 // ===== セッションごとのバリエーション（セブの実在スポット＋相手のキャラ変化） =====
 const VARIATIONS={
@@ -433,7 +435,8 @@ const VOICE_SETS={
   cafe:[V_TESSA, V_SAM],                          // カフェ＝女性2種からランダム
   _default:[V_DANIEL, V_RISHI, V_TESSA, V_SAM]    // その他＝上記4種からランダム
 };
-let sessionVoiceSpec=null;   // 今のセッションで使う音声
+let sessionVoiceSpec=null;   // 今のセッションで使う音声の指定
+let sessionVoice=null;       // 実際に解決した音声（会話中はこれで固定）
 function pickVoiceSpec(cat){ const arr=VOICE_SETS[cat]||VOICE_SETS._default; return arr[Math.floor(Math.random()*arr.length)]; }
 function pickVoice(gender){
   const vs=speechSynthesis.getVoices()||[];
@@ -469,14 +472,17 @@ function speak(text,onDone,rateOverride){
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
     u.lang='en-US'; u.rate=rateOverride||parseFloat($('rate').value)||0.95;
-    const v=resolveVoice(sessionVoiceSpec);
+    // 会話中は同じ声で固定。音声リスト読み込み後に一度だけ解決してキャッシュする
+    let v=sessionVoice;
+    if(!v){ const vs=speechSynthesis.getVoices()||[]; if(vs.length){ v=resolveVoice(sessionVoiceSpec); if(sessionVoiceSpec) sessionVoice=v; } }
     if(v){ u.voice=v; if(v.lang) u.lang=v.lang; }
     u.onend=finish; u.onerror=finish;
     speechSynthesis.speak(u);
     setTimeout(finish, Math.max(1500, text.split(/\s+/).length*380/(u.rate||1))+800);
   }catch(e){ finish(); }
 }
-speechSynthesis.onvoiceschanged=()=>{};
+speechSynthesis.onvoiceschanged=()=>{ if(sessionVoiceSpec && !sessionVoice){ const vs=speechSynthesis.getVoices()||[]; if(vs.length) sessionVoice=resolveVoice(sessionVoiceSpec); } };
+try{ speechSynthesis.getVoices(); }catch(e){}   // 音声リストの読み込みを早めに促す
 
 // ===== 音声入力：録音 → 停止 → Whisper文字起こし（iPhoneで確実に動く単純フロー） =====
 let mediaStream=null, mediaRecorder=null, chunks=[], recState='idle', discardNext=false, recTimer=null, recSecs=0;
@@ -753,6 +759,8 @@ async function startConversation(sit, cat){
   $('startBtn').disabled=true;
   const flavor=pickVariation(cat);
   sessionVoiceSpec=pickVoiceSpec(cat);   // 場面ごとに音声をランダム選択（GRAB=男性/カフェ=女性/他=4種）
+  sessionVoice=null;
+  try{ const vs=speechSynthesis.getVoices()||[]; if(vs.length) sessionVoice=resolveVoice(sessionVoiceSpec); }catch(e){}   // 読み込み済みなら即確定
   messages=[{role:'user',content:'練習したい場面: '+sit+
     '\n\n【今回のセブ設定（相手役はこの設定で自然に振る舞う。固有名詞は並べすぎず1〜2個を自然に）】\n'+flavor+
     '\n\nこの設定の相手役として、あなたから会話を始めてください。'}];
