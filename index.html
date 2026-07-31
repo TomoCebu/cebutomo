@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CebuTomo">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#28b6cc">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
 <title>CebuTomoEnglish</title>
 <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
 <style>
@@ -130,24 +137,6 @@
   .drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .dresult{margin-top:10px}
   .wchip.pick{cursor:pointer} .wchip.pick:hover{background:#ffcdbf}
-  .corr{border:1px solid rgba(247,201,120,.55);border-radius:14px;padding:12px;margin-bottom:12px;background:rgba(255,255,255,.5)}
-  .corr-tag{display:inline-block;font-size:11px;font-weight:800;border-radius:20px;padding:2px 10px;margin-bottom:6px}
-  .corr-tag.you{background:#ffe0d8;color:#c23a1f}
-  .corr-tag.rec{background:#c9f2df;color:#0c7a54}
-  .corr-tag.q{background:#cfeef6;color:#1a93b4}
-  .corr-q{background:rgba(143,224,242,.22);border:1px solid rgba(40,182,204,.4);border-left:4px solid var(--sea);border-radius:12px;padding:9px 11px;margin-bottom:8px}
-  .corr-q .en{font-size:15px;color:#0c3a46}
-  .corr-q .ja{font-size:13px;color:var(--muted);margin-top:3px}
-  .corr-you{background:rgba(255,150,120,.14);border:1px solid rgba(242,89,60,.3);border-left:4px solid var(--coral);border-radius:12px;padding:9px 11px}
-  .corr-you .t{font-size:15px;color:var(--ink)}
-  .corr-rec{background:rgba(31,169,138,.12);border:1px solid rgba(31,169,138,.35);border-left:4px solid var(--palm);border-radius:12px;padding:9px 11px;margin-top:8px}
-  .corr-rec .en{font-size:15px;color:#0d6e5a;font-weight:700}
-  .corr-rec .ja{font-size:13px;color:var(--muted);margin-top:3px}
-  .corr .cmt{font-size:14px;margin:8px 2px}
-  .qalog .msg.user{margin-left:0}
-  .qain{margin-top:10px}
-  .corr-num{display:inline-block;background:var(--sea2);color:#fff;border-radius:20px;min-width:44px;text-align:center;
-    font-weight:800;font-size:12px;padding:2px 10px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -170,15 +159,15 @@
 
   <!-- 設定 -->
   <div class="card">
-    <details id="settingsBox">
-      <summary>⚙️ 設定（キーは埋め込み済み。通常は開かなくてOK）</summary>
+    <details id="settingsBox" open>
+      <summary>⚙️ 設定（初回のみ）</summary>
       <div style="margin-top:14px">
         <div class="keyrow">
           <label>Anthropic APIキー（Claude・会話と添削用）</label>
           <input type="password" id="apiKey" placeholder="sk-ant-api03-...">
         </div>
         <div class="keyrow">
-          <label>OpenAI APIキー（音声の文字起こし用）</label>
+          <label>OpenAI APIキー（Whisper・音声の文字起こし用）</label>
           <input type="password" id="openaiKey" placeholder="sk-...">
         </div>
         <div class="row keyrow">
@@ -188,7 +177,7 @@
           </div>
           <div style="flex:1 1 30%">
             <label>Azureリージョン</label>
-            <input type="text" id="azureRegion" placeholder="例: eastus">
+            <input type="text" id="azureRegion" placeholder="例: japaneast">
           </div>
         </div>
         <div class="keyrow">
@@ -212,12 +201,7 @@
             </select>
           </div>
         </div>
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk"> 認識結果を確認してから送る（誤認識を防ぐ）</label>
-        <div class="hint">💾 キーはアプリに埋め込み済みで、変更した場合のみ各端末のブラウザ内に保存されます。</div>
-        <div style="margin-top:14px">
-          <button class="btn-ghost btn-sm" id="voiceListBtn" type="button">🔊 この端末で使える音声を見る</button>
-          <div id="voiceList" style="margin-top:8px"></div>
-        </div>
+        <div class="hint">💾 キーは各端末のブラウザ内にだけ保存され、外部には送られません（OpenAI/Anthropicへの通信を除く）。</div>
       </div>
     </details>
   </div>
@@ -226,14 +210,12 @@
   <div class="card" id="setupCard">
     <label>場面を選んでタップ</label>
     <div class="presets">
-      <button class="preset" data-cat="air" data-sit="空港のチェックインカウンターで、航空会社の係員と搭乗手続きをする（預け荷物・座席・搭乗ゲートなど）">✈️<span>空港チェックイン</span></button>
-      <button class="preset" data-cat="hotel" data-sit="リゾートホテルのフロントでチェックインする（予約確認・部屋・朝食の時間・Wi-Fiなど）">🏨<span>ホテルチェックイン</span></button>
-      <button class="preset" data-cat="restaurant" data-sit="レストランに入店し、店員と人数や席についてやり取りして案内してもらう">🍽️<span>レストラン入店</span></button>
-      <button class="preset" data-cat="cafe" data-sit="カフェに入り、店員におすすめを聞いてドリンクやフードを注文する">☕<span>カフェ入店</span></button>
-      <button class="preset" data-cat="friend" data-sit="旅行先で出会った現地の友達と、日常的な雑談をする">🧑‍🤝‍🧑<span>友達と日常会話</span></button>
-      <button class="preset" data-cat="souvenir" data-sit="お土産屋さんで店員に商品について尋ねたり値段を聞いたりして買い物する">🎁<span>お土産屋さん</span></button>
-      <button class="preset" data-cat="beginner" data-sit="【難易度: 初級・小学校〜中学校の教科書レベル】旅行先で出会った人とごく簡単な英語で日常会話をする（自己紹介・出身・趣味・好きな食べ物・天気など）。相手は必ず短くやさしい文で、ゆっくり一文ずつ話す。">🔰<span>初級英会話</span></button>
-      <button class="preset" data-cat="grab" data-sit="配車アプリ「Grab」で手配したタクシーの場面。あなたはGrabドライバー役。到着前に電話やチャットで、現在地・目印・待ち合わせ場所・目的地・人数・荷物・支払い方法などをユーザーに確認し、乗車後は目的地までの簡単なやり取り（ルート確認・エアコン・所要時間・料金など）をする。">🚕<span>GRABタクシー</span></button>
+      <button class="preset" data-sit="空港のチェックインカウンターで、航空会社の係員と搭乗手続きをする（預け荷物・座席・搭乗ゲートなど）">✈️<span>空港チェックイン</span></button>
+      <button class="preset" data-sit="リゾートホテルのフロントでチェックインする（予約確認・部屋・朝食の時間・Wi-Fiなど）">🏨<span>ホテルチェックイン</span></button>
+      <button class="preset" data-sit="レストランに入店し、店員と人数や席についてやり取りして案内してもらう">🍽️<span>レストラン入店</span></button>
+      <button class="preset" data-sit="カフェに入り、店員におすすめを聞いてドリンクやフードを注文する">☕<span>カフェ入店</span></button>
+      <button class="preset" data-sit="旅行先で出会った現地の友達と、日常的な雑談をする">🧑‍🤝‍🧑<span>友達と日常会話</span></button>
+      <button class="preset" data-sit="お土産屋さんで店員に商品について尋ねたり値段を聞いたりして買い物する">🎁<span>お土産屋さん</span></button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
       <label style="margin:0">その他（自由に入力）</label>
@@ -242,7 +224,7 @@
     <textarea id="situation" placeholder="例）ビーチでマリンアクティビティを予約したい"></textarea>
     <button class="btn-primary" id="startBtn" style="width:100%;margin-top:10px">▶ 入力した場面で始める</button>
     <button class="btn-ghost" id="practiceBtn" style="width:100%;margin-top:8px">🗣 単語だけ発音練習する</button>
-    <div class="hint">💡 開始後、話しかけられたら「🎤 話す」を押して英語で話し、終わったら「⏹」を押します。添削は最後にまとめて出ます。</div>
+    <div class="hint">💡 開始後、話しかけられたら「🎤 話す」を押して英語で話し、終わったら「⏹」を押します。</div>
   </div>
   <div id="practiceHome"></div>
 
@@ -263,7 +245,7 @@
       <div style="flex:0 0 auto"><button class="btn-ghost btn-sm" id="endBtn">会話を終える</button></div>
     </div>
     <textarea id="answer" class="hidden" style="margin-top:12px" placeholder="英語で入力してください..."></textarea>
-    <button class="btn-primary hidden" id="sendBtn" style="margin-top:10px;width:100%">送信 →</button>
+    <button class="btn-primary hidden" id="sendBtn" style="margin-top:10px;width:100%">送信して添削 →</button>
     <div class="hint" id="micHint"></div>
   </div>
 
@@ -272,137 +254,27 @@
 
 <script>
 const $ = id => document.getElementById(id);
-
-/* ===== 埋め込みキー（簡易難読化: XOR + base64）=====
-   強固な暗号ではありません。GitHubの自動検知・自動失効を避けつつ、
-   人にすぐ読まれないための軽い難読化です。設定画面で上書き可能。 */
-const _P='CebuTomo!2026#kaizen';
-const _EMB={
-  ANT:'MA5PFDobQA5RWwABG3U8MgoWFC8NMC8zHSgyHG1ZXkMbWxM+MytdICYiOBQ+Dg8YDGtaXht1XxcIDQE6Bgo1LQsDBC1TQml7b3A+MFpJBi0oIlIMDgFdDnEfRFZddjwZMC4SQyEDJS8ZGCwu',
-  OAI:'MA5PBSYAB0IZXFxUZERaWQ0fJwgACQwjGlouNRZcR0FwSQE4BQodKgwcEjsxASYsUQdpZFBkDDFeNDdYdAEwEDUdXT5ZBm9wd0RSECsrVh0yKjZGFgMPBGd4SlhwRAA4WDEiASRVLj8hHyNbcUhTZFNBE1EIIBQYJxAuNhFbCkIMYQJeWHZcMzY9UAI3XC1CMR01NgxdXQdgYAlRHhcRHyItFTQ=',
-  AZ:'chIqEBwuXy14QgZnfBEtMxsWUCYpAS8kJV05BmV+eFBsa1xYJRFSXwwTUg9gLBw4aEV+XXxyOitQQyYpAiY7EBYFKzdrAUcBd2IqOCg5KikEJAMw',
-  REG:'JgQRASEc'
-};
-function _dk(b64){ try{ const s=atob(b64); let o=''; for(let i=0;i<s.length;i++){ o+=String.fromCharCode(s.charCodeAt(i) ^ _P.charCodeAt(i%_P.length)); } return o; }catch(e){ return ''; } }
-
-const SYSTEM = `あなたは日本人の英語学習者のための「旅行英会話」練習パートナーです。
-ユーザーは練習したい場面を日本語で入力します。あなたはその場面の相手役（現地の友達・カフェやホテルの従業員・Grabドライバーなど）を演じ、必ず reply ツールで応答します。
-- partner_line: 相手役の自然な英語のセリフ。場面文に難易度の指定（例:「初級・中学英語レベル」）があれば必ず従い、短くやさしい英語で一文ずつ話す。
-- partner_line_ja: その日本語訳。
-- direction_ja: ユーザーが次に英語で言うべき事の短い日本語ヒント。
+const SYSTEM = `あなたは日本人の中級英語学習者のための「旅行英会話」練習パートナーです。
+ユーザーは練習したい場面を日本語で入力します。あなたはその場面の相手役（現地の友達・カフェやホテルの従業員など）を演じます。
+必ず reply ツールを使って応答してください。
+- partner_line: 相手役の自然な英語のセリフ（中級者に伝わる範囲）
+- partner_line_ja: その日本語訳
+- direction_ja: ユーザーが次に英語で言うべき事の短い日本語ヒント
+- feedback: 直前のユーザー英語発話の添削。会話の最初のターン（ユーザーがまだ話していない時）だけ省略し、それ以外は必ず全項目を埋める（空文字禁止）。①通じたか(comprehensible) ②文法(grammar) ③発音(pronunciation：入力はWhisperで文字起こしされた英語なので、綴りや語形から日本人がつまずきやすい音(th,r/l,v/b等)を推定して助言) ④より自然な言い方(native) を日本語で簡潔に、しかし必ず具体的に記述する。
 - done: 会話を4〜6ラリー続けたら true にして締める。
-【重要】ユーザーの入力は英語の発話を音声認識で文字起こししたテキストです。不完全・崩れている・一部日本語でも、決して「英語で話してください」等のメタな指示で会話を止めないこと。基本は最も近い意図を推測して自然に会話を続けるが、意味が本当に取りづらい・曖昧なときは、相手役として自然に聞き返してよい（例："Sorry sir, could you say that again?" / "Pardon?" / "Sorry, do you mean ...?"）。毎回は聞き返さず、必要なときだけにすること。
-【重要】この場では添削・訂正は一切しないこと（最後にまとめて行います）。相手役のセリフだけで自然に会話を進める。励ましながら簡潔に。
-【舞台】この練習はすべてフィリピンのセブ島(Cebu)への旅行が舞台です。店名・ホテル名・レストラン名・地名・観光地などは、与えられた設定にあるセブの実在スポットを自然に会話へ織り交ぜてください。固有名詞は並べすぎず、1〜2個を自然に使う程度に。
-【呼びかけ】ユーザー（学習者）は50歳前後の男性です。"Ma'am" や "Miss" は絶対に使わないこと。"Sir" は、店員・ホテル・空港・タクシーなど接客やフォーマルな場面で丁寧に呼びかける必要がある時だけ、毎回連呼せず自然な頻度で使う。友達との雑談などカジュアルな場面では "Sir" を使わず、名前で呼ぶか呼びかけ無しで対等に話すこと。
-【両替レートの目安（2026年7月時点の実勢）】両替やレートの話題になったら、次を目安に現実的な数字で答えること：1 USD ≈ 約61〜62 PHP、1,000 JPY ≈ 約375〜380 PHP（1 PHP ≈ 約2.6〜2.7円）。ホテルでの両替は実勢よりやや悪いレート（数%低い）になるのが自然。
-【リアルな手続き】実戦練習になるよう、その場面で実際に行われる手続きを省略せず自然に会話へ含めること。例：ホテルのチェックインでは宿泊登録カードへの署名やパスポート提示、デポジット/カード提示の案内など。空港のチェックインではパスポート提示、（超過手荷物のカード決済伝票などで）署名を求める場面など。カフェやお土産でもカード決済時の署名など。ただし毎ターン同じ要求を機械的に繰り返すのではなく、会話の自然な流れの中で1つずつ求めること。
-【フィリピン英語の言い回し】接客表現はフィリピン（セブ）で実際に使われる言い方に寄せること。特に署名を求めるときは、動詞 "sign" ではなく名詞 "signature" を使うのが現地では自然（例："Signature here, sir." / "May I have your signature, sir?" / "Kindly affix your signature here, sir." / "Signature, please."）。その他も "Kindly ..." を丁寧に使う、トイレは "comfort room / CR" と呼ぶ、"for here or take out?" など、フィリピン英語らしい自然な表現を適度に取り入れる。
-【バリエーション】毎回同じ言い回し・同じ順序・同じ第一声にならないようにすること。第一声、質問の仕方、相づち、言葉選び、話題の広げ方を毎ターン変えて、定型文の繰り返しを避ける。同じ場面でもセッションごとに切り口を変え、実際の人との会話のように少しずつ違う反応をする。`;
-
-// ===== セッションごとのバリエーション（セブの実在スポット＋相手のキャラ変化） =====
-const VARIATIONS={
-  hotel:[
-    'あなたはシャングリラ・マクタン(Shangri-La Mactan)のフロント係。今日は満室気味で忙しいが丁寧。朝食会場やプライベートビーチを案内する。',
-    'あなたはドゥシタニ・マクタン(Dusit Thani Mactan Cebu)のフロント係。フレンドリーで、スパやプールの利用を勧めたい。',
-    'あなたはクリムゾン・リゾート(Crimson Resort and Spa Mactan)のフロント係。名物のインフィニティプールやアイランドホッピングを提案する。',
-    'あなたはラディソン・ブル・セブ(Radisson Blu Cebu)のフロント係。隣接するSMシティ・セブへの行き方も案内できる。',
-    'あなたはウォーターフロント・セブ(Waterfront Cebu City Hotel)のフロント係。丁寧だが少し事務的。Wi-Fiや朝食時間を伝える。'
-  ],
-  restaurant:[
-    'あなたはセブ名物レチョンの人気店ズブチョン(Zubuchon)の店員。名物のレチョンやセブ料理を勧める。アンソニー・ボーディンで有名。',
-    'あなたはリコス・レチョン(Rico\'s Lechon)の店員。名物のスパイシー・レチョンを勧める。今日は少し混んでいる。',
-    'あなたはハウス・オブ・レチョン(House of Lechon)の店員。落ち着いた雰囲気で、フィリピン料理も色々ある。',
-    'あなたはシーフード食堂ランタウ(Lantaw)の店員。海を見ながら食べる地元の魚介やグリルを勧める。',
-    'あなたは屋台街ラルシアン(Larsian)のBBQ店員。串焼きとプソ(ハンギングライス)を勧める。気さくで早口。'
-  ],
-  cafe:[
-    'あなたはアバカ・ベイキング(Abaca Baking Company)の若い女性店員。明るく親しみやすい話し方で、人気のペストリーやブラックコーヒーを勧める。朝で少し行列。',
-    'あなたはタイトロープ・コーヒー(Tightrope Coffee)の若い女性店員。感じよく、サードウェーブの本格コーヒーや豆について丁寧に説明する。',
-    'あなたはザ・チョコレート・チェンバー(The Chocolate Chamber)の若い女性店員。にこやかに、地元カカオのドリンクやスイーツを勧める。',
-    'あなたはITパークのカフェの若い女性店員。フレンドリーで、テイクアウトかイートインかを聞く。少し忙しいが愛想が良い。'
-  ],
-  friend:[
-    'あなたはセブ在住の現地の友達。週末にマゼラン・クロスやサントニーニョ教会、テンプル・オブ・リアへ行く相談をする。',
-    'あなたはセブの友達。カワサン滝(Kawasan Falls)のキャニオニングやオスロブ(Oslob)のジンベイザメを一緒に計画したい。',
-    'あなたはセブの友達。地元グルメ(ラルシアンのBBQ、レチョン、ドライマンゴー)の話で盛り上がる。',
-    'あなたはセブの友達。シラオ・フラワーガーデンやトップス展望台(Tops)の夜景の話をしたい。',
-    'あなたはセブの友達。今日は天気やお互いの近況など、のんびり雑談したい気分。'
-  ],
-  souvenir:[
-    'あなたはお土産屋の店員。名物の7Dドライマンゴーやプロフード(Profood)のマンゴーを勧める。',
-    'あなたはお土産屋の店員。オタップ(Shamrockのotap)やロスキージョス(Titay\'s)など焼き菓子を勧める。',
-    'あなたはマクタンのギター工房の店員。セブ名産の手作りギターを紹介する。試し弾きも勧める。',
-    'あなたは空港のお土産センター(Airport Pasalubong Center)の店員。定番みやげを手早く案内する。搭乗前で急ぎ気味。'
-  ],
-  air:[
-    'あなたはマクタン・セブ国際空港(Mactan-Cebu International Airport)のセブパシフィック航空チェックインカウンター係。搭乗手続きをする。',
-    'あなたはマクタン・セブ国際空港のフィリピン航空(Philippine Airlines)の係員。少し混雑気味で手際よく案内する。',
-    'あなたは空港の係員。預け荷物の重量オーバーや座席の希望など、少しイレギュラーなやり取りをする。'
-  ],
-  beginner:[
-    'あなたはセブで出会った親切な人。中学英語レベルの短い文で、名前・出身・好きな食べ物(マンゴーなど)をゆっくり一文ずつ聞く。',
-    'あなたはセブのやさしい店員。初級英語で、天気やこれからどこへ行くか(ビーチ、モール)を短く尋ねる。',
-    'あなたはセブで知り合った同年代の人。趣味や旅行の予定を、やさしい英語で少しずつ話す。'
-  ],
-  grab:[
-    'あなたはGrabドライバー。マクタン・セブ国際空港からホテルへ向かう。現在地・目印・目的地を確認し、渋滞や所要時間の話をする。',
-    'あなたはGrabドライバー。アヤラ・センター・セブ(Ayala Center Cebu)やSMシティ・セブへ移動。近道を提案したり観光地を教えたりする。',
-    'あなたはGrabドライバー。トップス展望台(Tops)やテンプル・オブ・リアなど高台の観光地へ。道が細いので待ち合わせ場所を確認する。',
-    'あなたはGrabドライバー。支払い方法(現金かGrabPay)や人数・荷物を確認する。今日は少し雨で渋滞している。'
-  ],
-  _generic:[
-    'この会話はセブ島(Cebu)が舞台。相手役として、必要ならアヤラ・センター・セブやSMシーサイド、マゼラン・クロスなどセブの実在スポットを自然に織り交ぜる。',
-    'この会話はセブ島(Cebu)が舞台。カワサン滝やオスロブ、レチョン、ドライマンゴーなどセブらしい話題を自然に取り入れる。',
-    'この会話はセブ島(Cebu)が舞台。マクタン島のビーチリゾートやアイランドホッピングなど、南国リゾートの雰囲気を出す。'
-  ]
-};
-function pickVariation(cat){
-  const arr=(cat&&VARIATIONS[cat])?VARIATIONS[cat]:VARIATIONS._generic;
-  return arr[Math.floor(Math.random()*arr.length)];
-}
+【重要】ユーザーの入力は英語の発話をWhisperで文字起こししたテキストです。たとえ入力が不完全・崩れている・一部日本語・意味が取りにくくても、決して「英語で話してください」等と会話を止めないこと。必ず相手役として自然に会話を続け、気づいた点はfeedbackで指摘する。英語として不明瞭な場合は最も近い意図を推測して応答し、その旨をpronunciationやcomprehensibleで日本語で優しく伝える。
+励ましながら簡潔に。`;
 
 let messages = [];
-let keepGoing = false;        // 「続ける」で会話を延長
-let sessionWeakWords = [];    // 会話全体で発音が弱かった単語
-let userTurns = [];           // 各ユーザー発話 { en, pa }
-let lastSummary = null;       // 直近のまとめ（添削への質問で参照）
-let qaMessages = [];          // 添削への質問のやり取り（まとめ全体）
-let rallyQA = {};             // ラリーごとの質問スレッド {index:[messages]}
-let curQ = null;              // ユーザーが今答えている「設問」（相手のセリフ）{en,ja}
+let keepGoing = false;   // 「続ける」で会話を延長
+let sessionWeakWords = [];   // 会話全体で発音が弱かった単語
 
 // ---- 設定の保存/復元 ----
 (function restore(){
   const g=(k,el)=>{ const v=localStorage.getItem(k); if(v!=null) $(el).value=v; };
   g('te_key','apiKey'); g('te_okey','openaiKey'); g('te_model','model'); g('te_rate','rate');
   g('te_azkey','azureKey'); g('te_azreg','azureRegion'); g('te_phrases','phrases');
-  const c=localStorage.getItem('te_confirm'); if(c!=null) $('confirmChk').checked=(c==='1');
-})();
-$('confirmChk').addEventListener('change',e=>localStorage.setItem('te_confirm',e.target.checked?'1':'0'));
-function confirmOn(){ return $('confirmChk') && $('confirmChk').checked; }
-// この端末で使える音声の一覧＋試聴（設定内）
-$('voiceListBtn').onclick=()=>{
-  const vs=speechSynthesis.getVoices()||[];
-  const en=vs.filter(v=>/^en/i.test(v.lang));
-  const box=$('voiceList');
-  if(!en.length){ box.innerHTML='<div class="hint" style="margin-top:0">音声がまだ読み込まれていません。もう一度タップしてください。</div>'; return; }
-  box.innerHTML='<div class="hint" style="margin-top:0">英語 <b>'+en.length+'</b> 種類（この端末の全音声 '+vs.length+' 種類）。▶で試聴できます。</div>';
-  en.forEach(v=>{
-    const row=document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px'; row.style.margin='6px 0';
-    row.innerHTML='<div style="flex:1"><b style="font-size:14px">'+escapeHtml(v.name)+'</b> <span class="hint" style="display:inline;margin:0">'+escapeHtml(v.lang)+(v.default?' ・既定':'')+'</span></div>'+
-      '<button class="btn-ghost btn-sm" style="flex:0 0 auto">▶ 試聴</button>';
-    row.querySelector('button').onclick=()=>{ try{speechSynthesis.cancel();}catch(e){}
-      const u=new SpeechSynthesisUtterance('Hi! Welcome to Cebu. What can I get for you?'); u.voice=v; u.lang=v.lang; u.rate=0.95; speechSynthesis.speak(u); };
-    box.appendChild(row);
-  });
-};
-// 埋め込みキーで空欄を補完（localStorageに上書き保存があればそちら優先）
-(function embed(){
-  if(!$('apiKey').value)      $('apiKey').value=_dk(_EMB.ANT);
-  if(!$('openaiKey').value)   $('openaiKey').value=_dk(_EMB.OAI);
-  if(!$('azureKey').value)    $('azureKey').value=_dk(_EMB.AZ);
-  if(!$('azureRegion').value) $('azureRegion').value=_dk(_EMB.REG);
-  $('settingsBox').open=false;   // キーが入っているので初期は閉じる
+  if(localStorage.getItem('te_key')) $('settingsBox').open=false;
 })();
 $('apiKey').addEventListener('change',e=>localStorage.setItem('te_key',e.target.value.trim()));
 $('openaiKey').addEventListener('change',e=>localStorage.setItem('te_okey',e.target.value.trim()));
@@ -413,7 +285,7 @@ function phraseList(){ return ($('phrases').value||'').split(',').map(s=>s.trim(
 $('model').addEventListener('change',e=>localStorage.setItem('te_model',e.target.value));
 $('rate').addEventListener('change',e=>localStorage.setItem('te_rate',e.target.value));
 
-document.querySelectorAll('.preset').forEach(b=>{ b.onclick=()=>startConversation(b.getAttribute('data-sit'), b.getAttribute('data-cat')); });
+document.querySelectorAll('.preset').forEach(b=>{ b.onclick=()=>startConversation(b.getAttribute('data-sit')); });
 $('practiceBtn').onclick=()=>{ if(!$('practiceHome').hasChildNodes()) $('practiceHome').appendChild(makePracticePanel([])); $('practiceHome').scrollIntoView({behavior:'smooth'}); };
 $('sitMic').onclick=()=>{
   if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
@@ -422,49 +294,8 @@ $('sitMic').onclick=()=>{
     if(t){ $('situation').value=($('situation').value?$('situation').value+' ':'')+t; } });
 };
 
-// ---- 音声合成（読み上げ） ----
+// ---- 音声合成 ----
 let ttsPlaying=false;
-const V_FEM=/(samantha|victoria|karen|moira|tessa|fiona|susan|allison|ava|serena|zira|nicky|joelle|jenny|aria|female|women|veena|catherine|kate|linda)/i;
-const V_MAL=/(daniel|rishi|alex|aaron|fred|david|thomas|arthur|oliver|gordon|guy|male|\bman\b|albert|reed|eddy|rocko)/i;
-// 場面ごとの音声セット（名前＋言語＋性別）。名前が無い端末では言語・性別でフォールバック
-const V_DANIEL={name:'Daniel',lang:'en-GB',gender:'male'};
-const V_RISHI ={name:'Rishi', lang:'en-IN',gender:'male'};
-const V_TESSA ={name:'Tessa', lang:'en-ZA',gender:'female'};
-const V_SAM   ={name:'Samantha',lang:'en-US',gender:'female'};
-const VOICE_SETS={
-  grab:[V_DANIEL, V_RISHI],                       // GRAB＝男性2種からランダム
-  cafe:[V_TESSA, V_SAM],                          // カフェ＝女性2種からランダム
-  _default:[V_DANIEL, V_RISHI, V_TESSA, V_SAM]    // その他＝上記4種からランダム
-};
-let sessionVoiceSpec=null;   // 今のセッションで使う音声の指定
-let sessionVoice=null;       // 実際に解決した音声（会話中はこれで固定）
-function pickVoiceSpec(cat){ const arr=VOICE_SETS[cat]||VOICE_SETS._default; return arr[Math.floor(Math.random()*arr.length)]; }
-function pickVoice(gender){
-  const vs=speechSynthesis.getVoices()||[];
-  const en=vs.filter(v=>/^en/i.test(v.lang));
-  const enUS=en.filter(v=>/en[-_]US/i.test(v.lang));
-  const pool=enUS.length?enUS:en;
-  if(gender==='female'){ const f=pool.find(v=>V_FEM.test(v.name))||en.find(v=>V_FEM.test(v.name)); if(f) return f; }
-  if(gender==='male'){ const m=pool.find(v=>V_MAL.test(v.name))||en.find(v=>V_MAL.test(v.name)); if(m) return m; }
-  return pool[0]||en[0]||null;
-}
-// 指定音声を解決。無い端末では 同言語+性別 → 性別 → 既定 の順でフォールバック
-function resolveVoice(spec){
-  const vs=speechSynthesis.getVoices()||[];
-  const norm=s=>(s||'').replace('_','-').toLowerCase();
-  if(spec){
-    let v=vs.find(x=>x.name.toLowerCase()===spec.name.toLowerCase()); if(v) return v;
-    v=vs.find(x=>x.name.toLowerCase().includes(spec.name.toLowerCase())); if(v) return v;
-    const g=spec.gender==='female'?V_FEM:spec.gender==='male'?V_MAL:null;
-    if(spec.lang){
-      const sameLang=vs.filter(x=>norm(x.lang)===norm(spec.lang));
-      if(g){ const gg=sameLang.find(x=>g.test(x.name)); if(gg) return gg; }
-      if(sameLang.length) return sameLang[0];
-    }
-    return pickVoice(spec.gender||'');
-  }
-  return pickVoice('');
-}
 function unlockTTS(){ try{ const u=new SpeechSynthesisUtterance(''); speechSynthesis.speak(u); }catch(e){} }
 function speak(text,onDone,rateOverride){
   let done=false; ttsPlaying=true;
@@ -473,21 +304,17 @@ function speak(text,onDone,rateOverride){
     speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
     u.lang='en-US'; u.rate=rateOverride||parseFloat($('rate').value)||0.95;
-    // 会話中は同じ声で固定。音声リスト読み込み後に一度だけ解決してキャッシュする
-    let v=sessionVoice;
-    if(!v){ const vs=speechSynthesis.getVoices()||[]; if(vs.length){ v=resolveVoice(sessionVoiceSpec); if(sessionVoiceSpec) sessionVoice=v; } }
-    if(v){ u.voice=v; if(v.lang) u.lang=v.lang; }
+    const v=speechSynthesis.getVoices().find(v=>/en(-|_)US/i.test(v.lang))||speechSynthesis.getVoices().find(v=>/^en/i.test(v.lang));
+    if(v) u.voice=v;
     u.onend=finish; u.onerror=finish;
     speechSynthesis.speak(u);
     setTimeout(finish, Math.max(1500, text.split(/\s+/).length*380/(u.rate||1))+800);
   }catch(e){ finish(); }
 }
-speechSynthesis.onvoiceschanged=()=>{ if(sessionVoiceSpec && !sessionVoice){ const vs=speechSynthesis.getVoices()||[]; if(vs.length) sessionVoice=resolveVoice(sessionVoiceSpec); } };
-try{ speechSynthesis.getVoices(); }catch(e){}   // 音声リストの読み込みを早めに促す
+speechSynthesis.onvoiceschanged=()=>{};
 
-// ===== 音声入力：録音 → 停止 → Whisper文字起こし（iPhoneで確実に動く単純フロー） =====
+// ---- 録音 + Whisper 文字起こし ----
 let mediaStream=null, mediaRecorder=null, chunks=[], recState='idle', discardNext=false, recTimer=null, recSecs=0;
-let pendingBlob=null, pendingType=null;   // 確認待ちの録音（認識結果の確認ステップ用）
 function setLive(html,rec){ const b=$('liveBox'); b.innerHTML=html; b.classList.toggle('rec',!!rec); }
 function pickMime(){
   if(!window.MediaRecorder) return null;
@@ -496,18 +323,16 @@ function pickMime(){
   return '';
 }
 async function ensureStream(){
-  // 毎回マイクを取り直し、使い終わったら releaseMic() で必ず解放する
+  // 毎回マイク音声を取り直す（再生やAudioContext再構築で無音化した古いストリームを引きずらない）
   try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); } }catch(e){}
   mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});
   return mediaStream;
 }
-function releaseMic(){ try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
-function recDisplay(){ return '<span>🔴 録音中... '+recSecs+'秒</span><br><span class="ph">話し終わったら「⏹ 話し終わった」を押してください</span>'; }
+function recDisplay(){ return '<span>🔴 録音中... '+recSecs+'秒</span><br><span class="ph">話し終わったら「⏹ 話し終わった（添削）」を押してください</span>'; }
 function startTimer(){ stopTimer(); recTimer=setInterval(()=>{ recSecs++; if(recState==='recording') setLive(recDisplay(),true); },1000); }
 function stopTimer(){ if(recTimer){ clearInterval(recTimer); recTimer=null; } }
 
 async function startRecording(){
-  if(recState!=='idle') return;
   if(!$('openaiKey').value.trim()){
     setLive('<span class="ph">OpenAIキーが未設定です。設定で入力するか「✏️ 手入力」を使ってください。</span>');
     $('settingsBox').open=true; showManualBox(''); return;
@@ -520,54 +345,36 @@ async function startRecording(){
   chunks=[]; discardNext=false;
   const mime=pickMime();
   try{ mediaRecorder=new MediaRecorder(mediaStream, mime?{mimeType:mime}:undefined); }
-  catch(e){ try{ mediaRecorder=new MediaRecorder(mediaStream); }catch(e2){ setLive('<span class="ph">録音を開始できません。「✏️ 手入力」を使ってください。</span>'); showManualBox(''); releaseMic(); return; } }
+  catch(e){ mediaRecorder=new MediaRecorder(mediaStream); }
   mediaRecorder.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
   mediaRecorder.onstop=()=>{
     stopTimer();
+    if(discardNext){ discardNext=false; return; }
     const type=(mediaRecorder&&mediaRecorder.mimeType)||mime||'audio/webm';
-    const blob=new Blob(chunks,{type}); chunks=[];
-    releaseMic();
-    if(discardNext){ discardNext=false; recState='idle'; $('micBtn').textContent='🎤 話す'; $('micBtn').classList.remove('rec'); readyForUser(); return; }
-    transcribe(blob, type);
+    transcribe(new Blob(chunks,{type}), type);
   };
-  try{ mediaRecorder.start(); }
-  catch(e){ setLive('<span class="ph">録音を開始できません: '+escapeHtml(e.message)+'</span>'); showManualBox(''); releaseMic(); return; }
+  mediaRecorder.start();
   recState='recording'; recSecs=0;
-  $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった';
+  $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった（添削）';
   setLive(recDisplay(),true); startTimer();
 }
 function stopRecording(){
-  if(mediaRecorder && recState==='recording'){
-    recState='transcribing';
-    $('micBtn').classList.remove('rec'); $('micBtn').textContent='⏳ 処理中...';
-    setLive('<span class="loading"><span class="spinner"></span>✍️ 文字起こし中...</span>');
-    try{ mediaRecorder.stop(); }catch(e){ recState='idle'; $('micBtn').textContent='🎤 話す'; }
-  }
-}
-// 無音・極端に短い録音でWhisperが固有名詞ヒント等を「幻聴」した出力を弾く
-function isLikelyNoise(t){
-  const s=(t||'').trim().replace(/[.!?,、。・…\-]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
-  if(!s) return true;
-  const words=s.split(' ');
-  const pl=phraseList().map(x=>x.toLowerCase());
-  const common=['you','thank you','thanks','thank','thanks for watching','bye','okay','ok','uh','um','hmm','ah','oh','yeah','.'];
-  if(pl.length && words.length===1 && pl.includes(words[0])) return true;         // 固有名詞1語だけ
-  if(words.length<=2 && words.every(w=>pl.includes(w)||common.includes(w))) return true; // 固有名詞/相槌のみ
-  return false;
+  if(mediaRecorder && recState==='recording'){ recState='transcribing'; try{mediaRecorder.stop();}catch(e){} }
 }
 async function transcribe(blob,type){
+  $('micBtn').classList.remove('rec');
+  setLive('<span class="loading"><span class="spinner"></span>✍️ 文字起こし中...</span>');
   try{
-    // 録音が極端に短い（実質無音）ならWhisperに送らず終了
-    if(recSecs<1 && (!blob || blob.size<1600)){
-      recState='idle'; $('micBtn').textContent='🎤 話す';
-      setLive('<span class="ph">🎤 音声が短すぎました。「🎤 話す」を押して英語で話してください。</span>'); return;
-    }
     const text=await whisper(blob,type);
-    if(!text||!text.trim()||isLikelyNoise(text)){ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">うまく聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
+    if(!text||!text.trim()){ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">うまく聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
+    let pa=null;
+    if(azureReady()){
+      setLive('<span class="loading"><span class="spinner"></span>🎯 発音を採点中...</span>');
+      try{ pa=await assessPronunciation(await blobToWav(blob), text.trim()); }catch(e){ pa=null; }
+    }
     recState='idle'; $('micBtn').textContent='🎤 話す';
-    pendingBlob=blob; pendingType=type;
-    if(confirmOn()){ showConfirmBox(text.trim()); }   // 確認してから送る
-    else { sendFromPending(text.trim()); }             // 自動送信
+    let url=null; try{ url=URL.createObjectURL(blob); }catch(e){}
+    submitAnswer(text.trim(), pa, url);
   }catch(e){
     recState='idle'; $('micBtn').textContent='🎤 話す';
     setLive('<span class="ph">文字起こしエラー: '+escapeHtml(e.message)+'　「✏️ 手入力」も使えます。</span>'); showManualBox('');
@@ -580,7 +387,7 @@ async function whisper(blob,type){
   fd.append('file',blob,'audio.'+ext);
   fd.append('model','gpt-4o-transcribe');
   fd.append('language','en');
-  fd.append('prompt','Casual travel English conversation at a cafe, hotel, taxi (Grab), or with a friend. Transcribe the speech in English only.'+(phraseList().length?' Proper nouns that may appear: '+phraseList().join(', ')+'.':''));
+  fd.append('prompt','Casual travel English conversation at a cafe, hotel, or with a friend. Transcribe the speech in English only.'+(phraseList().length?' Proper nouns that may appear: '+phraseList().join(', ')+'.':''));
   const res=await fetchRetry('https://api.openai.com/v1/audio/transcriptions',{
     method:'POST', headers:{'Authorization':'Bearer '+okey}, body:fd
   });
@@ -588,28 +395,13 @@ async function whisper(blob,type){
   const data=await res.json(); return data.text||'';
 }
 
-// 確認済み（または自動）の発話を送る。発音採点は最終テキストを基準にバックグラウンドで行う。
-function sendFromPending(text){
-  let paPromise=null;
-  if(azureReady() && pendingBlob){ paPromise=assessPronunciation(pendingBlob, text).catch(()=>null); }
-  pendingBlob=null; pendingType=null;
-  submitAnswer(text, paPromise);
-}
-// 認識結果を編集可能な状態で表示（送信前に確認・修正できる）
-function showConfirmBox(text){
-  setLive('<span class="ph">🔎 認識結果を確認してください。違っていれば直すか「🔄 話し直す」で録り直せます。</span>');
-  showManualBox(text);
-  $('sendBtn').textContent='✅ これで送信';
-  try{ $('answer').focus(); }catch(e){}
-}
-
 // ---- 録音音声を16kHzモノラルWAVへ変換（Azure採点用） ----
-let _decCtx=null;
-function getDecodeCtx(){ if(!_decCtx){ const AC=window.AudioContext||window.webkitAudioContext; _decCtx=new AC(); } try{_decCtx.resume();}catch(e){} return _decCtx; }
 async function blobToWav(blob){
   const buf=await blob.arrayBuffer();
-  const ctx=getDecodeCtx();
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ctx=new AC();
   const decoded=await ctx.decodeAudioData(buf.slice(0));
+  try{ctx.close();}catch(e){}
   const rate=16000;
   const OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
   const off=new OAC(1, Math.max(1,Math.round(decoded.duration*rate)), rate);
@@ -631,11 +423,10 @@ function encodeWav(samples, rate){
   return new Blob([view],{type:'audio/wav'});
 }
 
-// ---- Azure 発音採点（ファイル単位・録音済みblobから。バックグラウンドで実行） ----
+// ---- Azure 発音採点 ----
 function azureReady(){ return $('azureKey').value.trim() && $('azureRegion').value.trim() && window.SpeechSDK; }
-async function assessPronunciation(recBlob, referenceText){
+async function assessPronunciation(wavBlob, referenceText){
   if(!azureReady()) return null;
-  const wavBlob=await blobToWav(recBlob);
   const SDK=window.SpeechSDK;
   const speechConfig=SDK.SpeechConfig.fromSubscription($('azureKey').value.trim(), $('azureRegion').value.trim());
   speechConfig.speechRecognitionLanguage='en-US';
@@ -658,12 +449,99 @@ async function assessPronunciation(recBlob, referenceText){
     }, ()=>{ try{reco.close();}catch(e){} resolve(null); });
   });
 }
-function collectWeak(pa){
-  if(!pa) return;
-  (pa.words||[]).forEach(w=>{
-    const bad=(w.err&&w.err!=='None')||(w.acc!=null&&w.acc<70);
-    if(bad && w.w && !sessionWeakWords.includes(w.w)) sessionWeakWords.push(w.w);
-  });
+
+// ---- Azure リアルタイム認識（話しながら文字が出る＋発音採点＋自分の声を録音） ----
+let azureReco=null, azureText='', azurePAsegs=[];
+let audioCtx=null, audioProc=null, audioSrc=null, azurePush=null;
+let pbRecorder=null, pbChunks=[], lastAudioUrl=null;
+function aggregatePA(segs){
+  if(!segs||!segs.length) return null;
+  const avg=k=>{ const xs=segs.map(s=>s[k]).filter(v=>v!=null&&!isNaN(v)); return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null; };
+  const words=[].concat.apply([],segs.map(s=>s.words||[]));
+  return { accuracy:avg('accuracy'), fluency:avg('fluency'), prosody:avg('prosody'), completeness:avg('completeness'), pron:avg('pron'), words };
+}
+function downsampleTo16k(input,inRate){
+  if(inRate===16000) return input;
+  const ratio=inRate/16000, outLen=Math.floor(input.length/ratio), out=new Float32Array(outLen);
+  for(let i=0;i<outLen;i++) out[i]=input[Math.floor(i*ratio)];
+  return out;
+}
+function floatTo16(f){ const b=new Int16Array(f.length); for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); b[i]=s<0?s*0x8000:s*0x7FFF; } return b; }
+// 音声グラフは毎回クリーンに作り直す（持ち越さない）
+function resetAudioGraph(){
+  try{ if(audioProc){ audioProc.onaudioprocess=null; audioProc.disconnect(); } }catch(e){} audioProc=null;
+  try{ if(audioSrc) audioSrc.disconnect(); }catch(e){} audioSrc=null;
+  try{ if(azurePush) azurePush.close(); }catch(e){} azurePush=null;
+  try{ if(audioCtx) audioCtx.close(); }catch(e){} audioCtx=null;
+}
+async function startAzureLive(){
+  const SDK=window.SpeechSDK;
+  let stream;
+  try{ stream=await ensureStream(); }
+  catch(e){ setLive('<span class="ph">🎤 マイクを使用できません: '+escapeHtml(e.message)+'</span>'); return; }
+  let cfg;
+  try{ cfg=SDK.SpeechConfig.fromSubscription($('azureKey').value.trim(), $('azureRegion').value.trim()); }
+  catch(e){ setLive('<span class="ph">Azure設定エラー: '+escapeHtml(e.message)+'</span>'); return; }
+  cfg.speechRecognitionLanguage='en-US';
+  // 1本のマイク音声を、Azure(認識)と録音(再生用)で共有する
+  resetAudioGraph();                    // 前回分を確実に掃除してから作り直す
+  const fmt=SDK.AudioStreamFormat.getWaveFormatPCM(16000,16,1);
+  azurePush=SDK.AudioInputStream.createPushStream(fmt);
+  const audioConfig=SDK.AudioConfig.fromStreamInput(azurePush);
+  const AC=window.AudioContext||window.webkitAudioContext;
+  audioCtx=new AC();
+  try{ await audioCtx.resume(); }catch(e){}   // 再生後に suspended でも確実に起動
+  audioSrc=audioCtx.createMediaStreamSource(stream);
+  audioProc=audioCtx.createScriptProcessor(4096,1,1);
+  const mute=audioCtx.createGain(); mute.gain.value=0;
+  audioSrc.connect(audioProc); audioProc.connect(mute); mute.connect(audioCtx.destination);
+  const inRate=audioCtx.sampleRate;
+  audioProc.onaudioprocess=e=>{ if(!azurePush) return; try{ azurePush.write(floatTo16(downsampleTo16k(e.inputBuffer.getChannelData(0),inRate)).buffer); }catch(_){} };
+  // 再生用の録音
+  lastAudioUrl=null;
+  try{ pbChunks=[]; const m=pickMime(); pbRecorder=new MediaRecorder(stream, m?{mimeType:m}:undefined);
+    pbRecorder.ondataavailable=ev=>{ if(ev.data&&ev.data.size) pbChunks.push(ev.data); }; pbRecorder.start(); }
+  catch(e){ pbRecorder=null; }
+  const pa=new SDK.PronunciationAssessmentConfig('', SDK.PronunciationAssessmentGradingSystem.HundredMark, SDK.PronunciationAssessmentGranularity.Phoneme, false);
+  try{ pa.enableProsodyAssessment=true; }catch(e){}
+  azureReco=new SDK.SpeechRecognizer(cfg, audioConfig);
+  pa.applyTo(azureReco);
+  try{ const pl=phraseList(); if(pl.length){ const g=SDK.PhraseListGrammar.fromRecognizer(azureReco); pl.forEach(p=>g.addPhrase(p)); } }catch(e){}
+  azureText=''; azurePAsegs=[];
+  azureReco.recognizing=(s,e)=>{ const t=(azureText+' '+e.result.text).trim(); setLive(t?escapeHtml(t):'<span class="ph">🔴 聞いています...</span>', true); };
+  azureReco.recognized=(s,e)=>{
+    if(e.result.reason===SDK.ResultReason.RecognizedSpeech && e.result.text){
+      azureText=(azureText+' '+e.result.text).trim();
+      try{ const r=SDK.PronunciationAssessmentResult.fromResult(e.result);
+        let words=[]; try{ words=(r.detailResult.Words||[]).map(x=>({w:x.Word, acc:x.PronunciationAssessment&&x.PronunciationAssessment.AccuracyScore, err:x.PronunciationAssessment&&x.PronunciationAssessment.ErrorType})); }catch(_){}
+        azurePAsegs.push({accuracy:r.accuracyScore,fluency:r.fluencyScore,prosody:r.prosodyScore,completeness:r.completenessScore,pron:r.pronunciationScore,words});
+      }catch(_){}
+      setLive(escapeHtml(azureText), true);
+    }
+  };
+  azureReco.canceled=(s,e)=>{ setLive('<span class="ph">🎤 認識エラー: '+escapeHtml(e.errorDetails||e.reason)+'</span>'); };
+  recState='recording'; $('micBtn').classList.add('rec'); $('micBtn').textContent='⏹ 話し終わった（添削）';
+  setLive('<span class="ph">🔴 聞いています... 話し終わったら「⏹」を押してください</span>', true);
+  azureReco.startContinuousRecognitionAsync(()=>{}, err=>{ setLive('<span class="ph">開始エラー: '+escapeHtml(err)+'</span>'); recState='idle'; $('micBtn').classList.remove('rec'); $('micBtn').textContent='🎤 話す'; });
+}
+function stopAzureLive(discard){
+  if(!azureReco){ recState='idle'; return; }
+  recState='transcribing';
+  resetAudioGraph();   // 音声グラフを掃除（pushを閉じてAzureに終端を伝える）
+  if(pbRecorder){
+    pbRecorder.onstop=()=>{ if(!discard && pbChunks.length){ try{ lastAudioUrl=URL.createObjectURL(new Blob(pbChunks,{type:(pbRecorder&&pbRecorder.mimeType)||'audio/webm'})); }catch(e){} } };
+    try{ pbRecorder.stop(); }catch(e){} pbRecorder=null;
+  }
+  if(!discard){ $('micBtn').classList.remove('rec'); setLive('<span class="loading"><span class="spinner"></span>✍️ まとめています...</span>'); }
+  const reco=azureReco; azureReco=null;
+  reco.stopContinuousRecognitionAsync(()=>{
+    try{reco.close();}catch(e){}
+    if(discard){ recState='idle'; startAzureLive(); return; }
+    recState='idle'; $('micBtn').textContent='🎤 話す';
+    const text=azureText.trim();
+    if(!text){ setLive('<span class="ph">聞き取れませんでした。「🎤 話す」でもう一度どうぞ。</span>'); return; }
+    submitAnswer(text, aggregatePA(azurePAsegs), lastAudioUrl);
+  }, ()=>{ recState='idle'; $('micBtn').textContent='🎤 話す'; setLive('<span class="ph">停止エラー。もう一度お試しください。</span>'); });
 }
 
 // ---- ボタン ----
@@ -672,14 +550,19 @@ function readyForUser(){
   setLive('<span class="ph">🟢 あなたの番です。準備ができたら「🎤 話す」を押して英語で話してください。</span>');
 }
 $('micBtn').onclick=()=>{
-  if(recState==='recording'){ stopRecording(); }
-  else if(recState==='idle'){ startRecording(); }
+  if(recState==='recording'){ azureReady()?stopAzureLive(false):stopRecording(); }
+  else if(recState==='idle'){ azureReady()?startAzureLive():startRecording(); }
 };
 $('redoBtn').onclick=()=>{
-  if(recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} }
-  else if(recState==='idle'){ startRecording(); }
+  if(azureReady()){
+    if(recState==='recording'){ stopAzureLive(true); } else { startAzureLive(); }
+  } else {
+    if(recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} recState='idle'; setTimeout(startRecording,180); }
+    else { startRecording(); }
+  }
 };
-$('editBtn').onclick=()=>{ pendingBlob=null; pendingType=null; $('sendBtn').textContent='送信 →'; showManualBox(undefined); $('answer').focus(); };
+$('editBtn').onclick=()=>{ showManualBox(undefined); $('answer').focus(); };
+// ヒント（相手が期待する返答の日本語ガイド）の表示切替
 function setDirection(text){ $('direction').textContent='💬 '+text; $('direction').classList.add('hidden'); $('hintBtn').textContent='💡 ヒントを見る'; }
 $('hintBtn').onclick=()=>{ const h=$('direction'); const hid=h.classList.toggle('hidden'); $('hintBtn').textContent=hid?'💡 ヒントを見る':'🙈 ヒントを隠す'; };
 function showManualBox(val){ $('answer').classList.remove('hidden'); $('sendBtn').classList.remove('hidden'); if(val!==undefined) $('answer').value=val; }
@@ -694,13 +577,24 @@ async function fetchRetry(url,opts,tries){
   }
   throw last;
 }
-
-// ---- Claude API（会話：相手役のセリフのみ。添削はしない＝速い） ----
+// ---- Claude API（tool useで常に正しい構造） ----
 const REPLY_TOOL={
   name:'reply',
-  description:'旅行英会話の相手役の応答を返す（添削はしない）。',
+  description:'旅行英会話の相手役の応答と、直前のユーザー英語発話への添削を返す。',
   input_schema:{ type:'object', properties:{
     partner_line:{type:'string'}, partner_line_ja:{type:'string'}, direction_ja:{type:'string'},
+    feedback:{ type:'object', description:'ユーザーが英語で発話した後は必ず全項目を日本語で埋める。会話の最初のターン（ユーザー未発話）ではこのキー自体を省略する。',
+      properties:{
+        comprehensible:{type:'object',properties:{
+          level:{type:'string',enum:['ok','mid','no'],description:'通じ具合'},
+          note:{type:'string',description:'①通じたかの具体的な説明（日本語・必須）'}}, required:['level','note']},
+        grammar:{type:'string',description:'②文法の指摘。問題なければ「問題なし」（日本語・必須）'},
+        pronunciation:{type:'string',description:'③発音の助言（日本語・必須）'},
+        native:{type:'object',properties:{
+          en:{type:'string',description:'④より自然な英語例（必須）'},
+          ja:{type:'string',description:'ニュアンスの日本語補足（必須）'}}, required:['en','ja']}
+      },
+      required:['comprehensible','grammar','pronunciation','native'] },
     done:{type:'boolean'}
   }, required:['partner_line','partner_line_ja','direction_ja','done'] }
 };
@@ -710,13 +604,43 @@ async function callClaude(){
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:500, system:SYSTEM, messages, tools:[REPLY_TOOL], tool_choice:{type:'tool',name:'reply'} })
+    body:JSON.stringify({ model:$('model').value, max_tokens:1200, system:SYSTEM, messages, tools:[REPLY_TOOL], tool_choice:{type:'tool',name:'reply'} })
   });
   if(!res.ok) throw new Error('Claude '+res.status+': '+(await res.text()).slice(0,200));
   const data=await res.json();
   const tu=(data.content||[]).find(c=>c.type==='tool_use');
   if(tu&&tu.input) return tu.input;
   throw new Error('応答を解釈できませんでした');
+}
+// feedbackが中身を持っているか
+function fbHasContent(fb){
+  if(!fb||typeof fb!=='object') return false;
+  const comp=(fb.comprehensible&&typeof fb.comprehensible==='object')?fb.comprehensible.note:fb.comprehensible;
+  const nat=(fb.native&&typeof fb.native==='object')?fb.native.en:fb.native;
+  return [comp,fb.grammar,fb.pronunciation,nat].some(x=>x&&String(x).trim());
+}
+// 空だった時に添削だけを取り直す
+const GRADE_TOOL={ name:'grade_feedback', description:'ユーザーの英語発話を旅行英会話の観点で添削',
+  input_schema:{ type:'object', properties:{
+    comprehensible:{type:'object',properties:{level:{type:'string',enum:['ok','mid','no']},note:{type:'string'}},required:['level','note']},
+    grammar:{type:'string'}, pronunciation:{type:'string'},
+    native:{type:'object',properties:{en:{type:'string'},ja:{type:'string'}},required:['en','ja']}
+  }, required:['comprehensible','grammar','pronunciation','native'] } };
+async function repairFeedback(userText){
+  const key=$('apiKey').value.trim();
+  const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({ model:$('model').value, max_tokens:700,
+      system:'あなたは日本人中級者の英語発話を添削する先生です。必ずgrade_feedbackツールで全項目を日本語で具体的に埋めて返してください。空文字は禁止です。',
+      messages:[{role:'user',content:'次の英語（Whisperで文字起こし・旅行会話）を①通じたか②文法③発音④より自然な言い方の4観点で添削してください: "'+userText+'"'}],
+      tools:[GRADE_TOOL], tool_choice:{type:'tool',name:'grade_feedback'} })
+  });
+  if(!res.ok) throw new Error('grade '+res.status);
+  const data=await res.json();
+  const tu=(data.content||[]).find(c=>c.type==='tool_use');
+  if(tu&&tu.input) return tu.input;
+  throw new Error('no feedback');
 }
 
 // ---- 描画 ----
@@ -742,71 +666,105 @@ function renderPartner(obj,onSpoken){
   $('convo').appendChild(d);
   speak(obj.partner_line,onSpoken);
 }
-function renderUser(text){
+function renderUser(text, audioUrl){
   const d=document.createElement('div'); d.className='msg user';
-  d.innerHTML='<div class="who"><span>🗣 あなた</span></div><div class="en">'+escapeHtml(text)+'</div>';
+  const play=audioUrl?'<button class="speak playme">▶️ 自分の声</button>':'';
+  d.innerHTML='<div class="who"><span>🗣 あなた</span>'+play+'</div><div class="en">'+escapeHtml(text)+'</div>';
+  if(audioUrl){ const au=new Audio(audioUrl); d.querySelector('.playme').onclick=()=>{ try{au.currentTime=0;}catch(e){} au.play(); }; }
+  $('convo').appendChild(d);
+}
+function renderFeedback(fb){
+  if(!fb) return;
+  const comp=(fb.comprehensible&&typeof fb.comprehensible==='object')?fb.comprehensible:{note:fb.comprehensible};
+  const lv=comp.level||'mid';
+  const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
+  const nat=(fb.native&&typeof fb.native==='object')?fb.native:{en:fb.native};
+  const dash='<span class="ph">—</span>';
+  const d=document.createElement('div'); d.className='fb';
+  d.innerHTML='<h4>📝 添削</h4>'+
+    '<div class="item"><span class="k">① 通じたか</span>'+badge+'<div>'+(escapeHtml(comp.note)||dash)+'</div></div>'+
+    '<div class="item"><span class="k">② 文法</span><div>'+(escapeHtml(fb.grammar)||dash)+'</div></div>'+
+    '<div class="item"><span class="k">③ 発音</span><div>'+(escapeHtml(fb.pronunciation)||dash)+'</div></div>'+
+    '<div class="item native"><span class="k">④ より自然な言い方</span><div class="en">'+(escapeHtml(nat.en)||dash)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(nat.ja||'')+'</div></div>';
+  d.querySelector('.speak').onclick=()=>speak(nat.en||'');
   $('convo').appendChild(d);
 }
 function scoreColor(v){ if(v==null) return 'var(--muted)'; return v>=80?'#0c7a54':v>=60?'#a9721a':'#c23a1f'; }
+function renderPronScore(pa){
+  if(!pa) return;
+  const rows=[['総合',pa.pron],['正確さ',pa.accuracy],['流暢さ',pa.fluency],['抑揚',pa.prosody],['完全性',pa.completeness]]
+    .filter(r=>r[1]!=null);
+  let bars=rows.map(r=>{
+    const v=Math.round(r[1]);
+    return '<div class="scrow"><span class="scl">'+r[0]+'</span>'+
+      '<span class="scbar"><span class="scfill" style="width:'+v+'%;background:'+scoreColor(v)+'"></span></span>'+
+      '<span class="scv" style="color:'+scoreColor(v)+'">'+v+'</span></div>';
+  }).join('');
+  let weak=(pa.words||[]).filter(w=>w.err&&w.err!=='None'||(w.acc!=null&&w.acc<70));
+  weak.forEach(w=>{ if(w.w && !sessionWeakWords.includes(w.w)) sessionWeakWords.push(w.w); });
+  let weakHtml='';
+  if(weak.length){
+    weakHtml='<div class="weak"><b>要練習の単語:</b> '+weak.map(w=>{
+      const lab=w.err&&w.err!=='None'?w.err:'';
+      return '<span class="wchip">'+escapeHtml(w.w)+(w.acc!=null?' '+Math.round(w.acc):'')+'</span>';
+    }).join(' ')+'</div>';
+  } else if((pa.words||[]).length){
+    weakHtml='<div class="weak" style="color:#0c7a54">🌟 全単語しっかり発音できています！</div>';
+  }
+  const d=document.createElement('div'); d.className='fb pron';
+  d.innerHTML='<h4>🎯 発音スコア（Azure実測）</h4>'+bars+weakHtml;
+  $('convo').appendChild(d);
+}
 function escapeHtml(s){ if(s==null) return ''; if(typeof s!=='string') s=(typeof s==='object')?JSON.stringify(s):String(s);
   return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function scrollDown(){ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
 
 // ---- 会話開始 ----
-$('startBtn').onclick=()=>startConversation($('situation').value.trim(), null);
-async function startConversation(sit, cat){
+$('startBtn').onclick=()=>startConversation($('situation').value.trim());
+async function startConversation(sit){
   if(!sit){ alert('場面を選ぶか、自由入力してください。'); return; }
   unlockTTS();
   $('startBtn').disabled=true;
-  const flavor=pickVariation(cat);
-  sessionVoiceSpec=pickVoiceSpec(cat);   // 場面ごとに音声をランダム選択（GRAB=男性/カフェ=女性/他=4種）
-  sessionVoice=null;
-  try{ const vs=speechSynthesis.getVoices()||[]; if(vs.length) sessionVoice=resolveVoice(sessionVoiceSpec); }catch(e){}   // 読み込み済みなら即確定
-  messages=[{role:'user',content:'練習したい場面: '+sit+
-    '\n\n【今回のセブ設定（相手役はこの設定で自然に振る舞う。固有名詞は並べすぎず1〜2個を自然に）】\n'+flavor+
-    '\n\nこの設定の相手役として、あなたから会話を始めてください。'}];
-  userTurns=[]; sessionWeakWords=[]; keepGoing=false; curQ=null;
+  messages=[{role:'user',content:'練習したい場面: '+sit+'\n\nこの場面の相手役として、あなたから会話を始めてください。feedbackは省略で。'}];
   const load=loadingEl('相手が準備中...'); $('convo').appendChild(load);
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
-    curQ={en:obj.partner_line, ja:obj.partner_line_ja||''};
     load.remove();
-    $('setupCard').classList.add('hidden'); $('practiceHome').innerHTML=''; hideManualBox();
+    $('setupCard').classList.add('hidden'); hideManualBox();
     setDirection(obj.direction_ja||'英語で返答してください');
     $('inputCard').classList.remove('hidden');
     setLive('<span class="ph">相手が話しています...</span>');
     renderPartner(obj,readyForUser);
     scrollDown();
   }catch(e){ load.remove(); showError(e); $('startBtn').disabled=false; }
-}
+};
 
-// ---- 返答を送る（添削なし＝そのまま次へ。速い） ----
-async function submitAnswer(ans, paPromise){
+// ---- 添削 ----
+async function submitAnswer(ans, pa, audioUrl){
   ans=(ans||'').trim();
   if(!ans){ alert('英語で話すか入力してください。'); return; }
-  renderUser(ans); hideManualBox();
-  const turn={ en:ans, pa:null, q_en:(curQ&&curQ.en)||'', q_ja:(curQ&&curQ.ja)||'' };
-  userTurns.push(turn);
-  // 発音採点はバックグラウンドで受け取り、弱点単語だけ蓄積（会話は待たせない）
-  if(paPromise){ paPromise.then(pa=>{ if(pa){ turn.pa=pa; collectWeak(pa); } }); }
+  renderUser(ans, audioUrl); hideManualBox();
+  if(pa) renderPronScore(pa);
   $('inputCard').classList.add('hidden');
-  messages.push({role:'user',content:'私の英語の返答（音声認識）: "'+ans+'"\n\n相手役として自然に会話を続けてください。添削は不要です。'+(keepGoing?' まだ会話を続けたいので done は false のままにしてください。':'')});
-  const load=loadingEl('相手が考えています...'); $('convo').appendChild(load); scrollDown();
+  messages.push({role:'user',content:'私の英語の返答（Whisperで文字起こし）: "'+ans+'"\n\nこの返答をfeedbackで4観点添削し、会話を続けてください。'+(keepGoing?' ユーザーはまだ会話を続けたいので、doneはfalseのまま自然に会話を継続してください。':'')});
+  const load=loadingEl('添削中...'); $('convo').appendChild(load); scrollDown();
   try{
     const obj=await callClaude();
     messages.push({role:'assistant',content:JSON.stringify(obj)});
-    curQ={en:obj.partner_line, ja:obj.partner_line_ja||''};   // 次に答える設問
+    let fb=obj.feedback;
+    if(!fbHasContent(fb)){ try{ fb=await repairFeedback(ans); }catch(e){} }
     load.remove();
+    renderFeedback(fb);
     if(obj.done){
       renderPartner(obj);
       $('inputCard').classList.add('hidden');
       const d=document.createElement('div'); d.className='card sys';
-      d.innerHTML='<b>🎉 ひと区切りです！</b><br><span style="font-size:13px;color:var(--muted)">会話を続けますか？終わりにして添削（まとめ）を見ますか？</span>';
+      d.innerHTML='<b>🎉 ひと区切りです！</b><br><span style="font-size:13px;color:var(--muted)">会話を続けますか？終わりにしますか？</span>';
       const row=document.createElement('div'); row.className='row'; row.style.marginTop='12px';
       const cont=document.createElement('button'); cont.className='btn-primary'; cont.style.flex='1'; cont.textContent='▶ 続ける';
       cont.onclick=()=>{ keepGoing=true; d.remove(); $('inputCard').classList.remove('hidden'); readyForUser(); scrollDown(); };
-      const quit=document.createElement('button'); quit.className='btn-ghost'; quit.style.flex='1'; quit.textContent='■ 終えて添削を見る';
+      const quit=document.createElement('button'); quit.className='btn-ghost'; quit.style.flex='1'; quit.textContent='■ やめる';
       quit.onclick=()=>{ d.remove(); endWithSummary(); };
       const c1=document.createElement('div'); c1.style.flex='1'; c1.appendChild(cont);
       const c2=document.createElement('div'); c2.style.flex='1'; c2.appendChild(quit);
@@ -821,41 +779,32 @@ async function submitAnswer(ans, paPromise){
     scrollDown();
   }catch(e){ load.remove(); showError(e); $('inputCard').classList.remove('hidden'); }
 }
-$('sendBtn').onclick=()=>{ const t=$('answer').value; $('sendBtn').textContent='送信 →'; if(pendingBlob){ sendFromPending(t); } else { submitAnswer(t, null); } };
+$('sendBtn').onclick=()=>submitAnswer($('answer').value);
+
+function releaseMic(){ resetAudioGraph(); try{ if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; } }catch(e){} }
 $('endBtn').onclick=()=>endWithSummary();
 
-// 会話中の録音を止める
+// 会話の録音を止める（Azure/録音どちらでも）
 function stopAllCapture(){
+  if(azureReco){ try{ const r=azureReco; azureReco=null; r.stopContinuousRecognitionAsync(()=>{try{r.close();}catch(e){}}, ()=>{}); }catch(e){} }
   if(mediaRecorder && recState==='recording'){ discardNext=true; try{mediaRecorder.stop();}catch(e){} }
   recState='idle'; releaseMic();
 }
-
-// ===== まとめ（添削は最後にここで一括表示） =====
-const SUMMARY_TOOL={ name:'session_summary', description:'英会話練習セッション全体の振り返りと、各発話の添削',
+// 振り返りをまとめる用ツール
+const SUMMARY_TOOL={ name:'session_summary', description:'英会話練習セッション全体の振り返り',
   input_schema:{ type:'object', properties:{
     good:{type:'string',description:'今回よくできていた点（日本語・励まし）'},
-    corrections:{type:'array',description:'ユーザーの各英語発話への添削（発話した順に1つずつ）',
-      items:{type:'object',properties:{
-        original:{type:'string',description:'ユーザーが実際に発話した英文（音声認識テキストのまま）'},
-        level:{type:'string',enum:['ok','mid','no'],description:'通じ具合 ok=良い mid=惜しい no=通じにくい'},
-        comment:{type:'string',description:'日本語で、通じ具合・文法・自然さの要点を簡潔に。問題なければ「問題なし」'},
-        better:{type:'string',description:'より自然な英語の言い方（1文）'},
-        ja:{type:'string',description:'betterのニュアンスの日本語補足'}
-      },required:['original','level','comment','better','ja']}},
-    points:{type:'array',description:'特に意識したい改善テーマ3〜5個',
-      items:{type:'object',properties:{title:{type:'string'},detail:{type:'string'}},required:['title','detail']}},
+    points:{type:'array',description:'特に改善すべき点3〜5個',
+      items:{type:'object',properties:{title:{type:'string',description:'短い見出し'},detail:{type:'string',description:'具体的な説明と直し方（日本語）'}},required:['title','detail']}},
     encouragement:{type:'string',description:'次回への一言（日本語）'}
-  }, required:['good','corrections','points','encouragement'] } };
+  }, required:['good','points','encouragement'] } };
 async function summarize(){
   const key=$('apiKey').value.trim();
-  const list=userTurns.map((t,i)=>(i+1)+'. "'+t.en+'"').join('\n');
-  const msgs=messages.concat([{role:'user',content:
-    'ここで練習を終えます。この会話での私（日本人の英語学習者）の英語発話は次の通りです:\n'+list+
-    '\n\nsession_summaryツールで返してください。corrections には上の各発話を順番に1つずつ入れ、original（発話そのまま）, level(ok/mid/no), comment（日本語で通じ具合・文法・自然さの要点。問題なければ「問題なし」）, better（より自然な英語）, ja（ニュアンス）を必ず埋めてください。全体のgood, 改善テーマpoints(3〜5), encouragement も日本語で。'}]);
+  const msgs=messages.concat([{role:'user',content:'ここで練習を終えます。この会話全体を振り返って、私（日本人の英語学習者）の発話について、特に改善すべき点を3〜5個、日本語で具体的にまとめてください。文法・語彙・自然さ・発音の観点から。良かった点と次回への励ましも添えて、session_summaryツールで返してください。'}]);
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:1600, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
+    body:JSON.stringify({ model:$('model').value, max_tokens:1000, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
   });
   if(!res.ok) throw new Error('summary '+res.status);
   const data=await res.json();
@@ -867,16 +816,13 @@ async function endWithSummary(){
   stopAllCapture();
   $('inputCard').classList.add('hidden');
   let sum=null;
-  if(userTurns.length){
-    const load=loadingEl('今回の会話をまとめて添削中...'); $('convo').appendChild(load); scrollDown();
-    // 走っている発音採点を少し待つ（最大2.5秒）
-    try{ await Promise.race([Promise.resolve(), new Promise(r=>setTimeout(r,2500))]); }catch(e){}
+  if(messages.length>1){
+    const load=loadingEl('今回の振り返りを作成中...'); $('convo').appendChild(load); scrollDown();
     try{ sum=await summarize(); }catch(e){}
     load.remove();
   }
   renderSummary(sum);
 }
-
 // ---- 単語の発音練習ドリル ----
 let drillRec=null, drillChunks=[], drillState='idle';
 function makeDrill(word){
@@ -897,17 +843,17 @@ function makeDrill(word){
     drillRec.ondataavailable=ev=>{ if(ev.data&&ev.data.size) drillChunks.push(ev.data); };
     drillRec.onstop=async()=>{
       const blob=new Blob(drillChunks,{type:(drillRec&&drillRec.mimeType)||'audio/webm'});
-      releaseMic();
-      let pa=null; try{ pa=await assessPronunciation(blob, word); }catch(e){}
+      let url=null; try{url=URL.createObjectURL(blob);}catch(e){}
+      let pa=null; try{ pa=await assessPronunciation(await blobToWav(blob), word); }catch(e){}
       drillState='idle'; recBtn.textContent='🎤 もう一度';
-      renderDrillResult(res, word, pa);
+      renderDrillResult(res, word, pa, url);
     };
     drillRec.start(); drillState='recording'; recBtn.textContent='⏹ 停止';
     res.innerHTML='<span class="ph">🔴 「'+escapeHtml(word)+'」と発音してください… 終わったら「⏹ 停止」</span>';
   };
   return box;
 }
-function renderDrillResult(res, word, pa){
+function renderDrillResult(res, word, pa, url){
   let acc=pa?pa.accuracy:null;
   if(pa&&pa.words&&pa.words.length){ const w=pa.words.find(x=>x.w&&x.w.toLowerCase()===word.toLowerCase())||pa.words[0]; if(w&&w.acc!=null) acc=w.acc; }
   const v=acc!=null?Math.round(acc):null, col=scoreColor(v);
@@ -918,8 +864,11 @@ function renderDrillResult(res, word, pa){
   }else{
     html+='<div class="ph" style="margin-bottom:6px">うまく採点できませんでした。もう一度どうぞ。</div>';
   }
-  html+='<div class="drow" style="margin-top:6px"><button class="btn-ghost btn-sm dmodel2">🔊 お手本</button></div>';
+  html+='<div class="drow" style="margin-top:6px">'+
+    (url?'<button class="btn-ghost btn-sm dplay">▶️ 自分の声</button>':'')+
+    '<button class="btn-ghost btn-sm dmodel2">🔊 お手本</button></div>';
   res.innerHTML=html;
+  if(url){ const a=new Audio(url); res.querySelector('.dplay').onclick=()=>{try{a.currentTime=0;}catch(e){} a.play();}; }
   res.querySelector('.dmodel2').onclick=()=>speak(word,null,0.7);
 }
 function makePracticePanel(weakWords){
@@ -953,240 +902,30 @@ function recognizeJa(cb){
     ()=>{ cb(''); try{r.close();}catch(e){} });
 }
 
-// ===== 添削についての質問（日本語で聞ける） =====
-function buildQAContext(){
-  let s='以下は私（日本人の英語学習者）の旅行英会話練習の添削結果です。この内容について日本語で質問します。日本語でわかりやすく簡潔に答えてください。英語の例を出すときは英文も添えてください。\n';
-  if(lastSummary){
-    if(lastSummary.good) s+='\n【良かった点】'+lastSummary.good;
-    if(lastSummary.corrections&&lastSummary.corrections.length){
-      s+='\n\n【発話ごとの添削（ユーザーは「ラリー番号」で指定して質問することがあります）】';
-      lastSummary.corrections.forEach((c,i)=>{ const t=userTurns[i]||{}; s+='\nラリー'+(i+1)+'：相手の問いかけ: "'+(t.q_en||'')+'" / 私の答え: "'+c.original+'" / おすすめ: "'+c.better+'" / コメント: '+c.comment; });
-    }
-    if(lastSummary.points&&lastSummary.points.length){
-      s+='\n\n【改善テーマ】';
-      lastSummary.points.forEach(p=>{ s+='\n・'+p.title+'：'+p.detail; });
-    }
-  }else{
-    s+='\n（詳しい添削データはありませんが、旅行英会話全般の質問として答えてください）';
-  }
-  return s;
-}
-async function askAboutFeedback(q){
-  const key=$('apiKey').value.trim();
-  if(!key) throw new Error('Anthropic APIキーが未設定です');
-  if(!qaMessages.length){ qaMessages.push({role:'user',content:buildQAContext()+'\n\n【質問】'+q}); }
-  else { qaMessages.push({role:'user',content:q}); }
-  const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:800,
-      system:'あなたは日本人学習者のための親切な英語コーチです。旅行英会話の添削について、日本語で分かりやすく簡潔に答えます。専門用語は避け、必要なら英語の例文を添えます。',
-      messages:qaMessages })
-  });
-  if(!res.ok) throw new Error('QA '+res.status+': '+(await res.text()).slice(0,150));
-  const data=await res.json();
-  const txt=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n').trim();
-  qaMessages.push({role:'assistant',content:txt});
-  return txt||'（回答を取得できませんでした）';
-}
-// ラリー単位の質問（そのラリーの設問・自分の答え・おすすめだけを文脈にする＝軽い）
-function buildRallyContext(i){
-  const c=(lastSummary&&lastSummary.corrections&&lastSummary.corrections[i])||{};
-  const t=userTurns[i]||{};
-  let s='これはフィリピン・セブ島旅行の英会話練習の添削についての質問です。以下の「ラリー'+(i+1)+'」の内容について、日本語でわかりやすく簡潔に答えてください。英語の例を出すときは英文も添えてください。\n';
-  if(t.q_en) s+='\n相手の問いかけ: "'+t.q_en+'"'+(t.q_ja?'（'+t.q_ja+'）':'');
-  s+='\n私の答え: "'+(c.original||t.en||'')+'"';
-  if(c.better) s+='\nおすすめの言い方: "'+c.better+'"';
-  if(c.comment) s+='\nコメント: '+c.comment;
-  return s;
-}
-async function askAboutRally(i,q){
-  const key=$('apiKey').value.trim();
-  if(!key) throw new Error('Anthropic APIキーが未設定です');
-  if(!rallyQA[i]) rallyQA[i]=[];
-  if(!rallyQA[i].length){ rallyQA[i].push({role:'user',content:buildRallyContext(i)+'\n\n【質問】'+q}); }
-  else { rallyQA[i].push({role:'user',content:q}); }
-  const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:800,
-      system:'あなたは日本人学習者のための親切な英語コーチです。旅行英会話の添削について、日本語で分かりやすく簡潔に答えます。専門用語は避け、必要なら英語の例文を添えます。',
-      messages:rallyQA[i] })
-  });
-  if(!res.ok) throw new Error('QA '+res.status+': '+(await res.text()).slice(0,150));
-  const data=await res.json();
-  const txt=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n').trim();
-  rallyQA[i].push({role:'assistant',content:txt});
-  return txt||'（回答を取得できませんでした）';
-}
-// 発音スコアのバー（保持済みのpaデータから描くだけ＝軽い）
-function pronBarsHTML(pa){
-  if(!pa) return '<div class="hint" style="margin:0">この発話の発音採点データはありません（Azure未設定、または音声が短い等）。</div>';
-  const rows=[['総合',pa.pron],['正確さ',pa.accuracy],['流暢さ',pa.fluency],['抑揚',pa.prosody],['完全性',pa.completeness]].filter(r=>r[1]!=null);
-  if(!rows.length) return '<div class="hint" style="margin:0">発音採点データを取得できませんでした。</div>';
-  const bars=rows.map(r=>{ const v=Math.round(r[1]); return '<div class="scrow"><span class="scl">'+r[0]+'</span>'+
-    '<span class="scbar"><span class="scfill" style="width:'+v+'%;background:'+scoreColor(v)+'"></span></span>'+
-    '<span class="scv" style="color:'+scoreColor(v)+'">'+v+'</span></div>'; }).join('');
-  const weak=(pa.words||[]).filter(w=>(w.err&&w.err!=='None')||(w.acc!=null&&w.acc<70));
-  let wh='';
-  if(weak.length){ wh='<div class="weak"><b>要練習の単語:</b> '+weak.map(w=>'<span class="wchip">'+escapeHtml(w.w)+(w.acc!=null?' '+Math.round(w.acc):'')+'</span>').join(' ')+'</div>'; }
-  else if((pa.words||[]).length){ wh='<div class="weak" style="color:#0c7a54">🌟 しっかり発音できています！</div>'; }
-  return '<div class="fb pron" style="margin:0">'+bars+wh+'</div>';
-}
-// 各添削カードに「発音スコアを見る」トグルを付ける（普段は非表示）
-function attachPronScore(cc, i){
-  const box=document.createElement('div'); box.style.marginTop='10px';
-  box.innerHTML='<button class="btn-ghost btn-sm ps-toggle">📊 発音スコアを見る</button>'+
-    '<div class="ps-body hidden" style="margin-top:8px"></div>';
-  const tg=box.querySelector('.ps-toggle'), body=box.querySelector('.ps-body');
-  tg.onclick=()=>{ const hid=body.classList.toggle('hidden'); tg.textContent=hid?'📊 発音スコアを見る':'📊 スコアを隠す';
-    if(!hid){ body.innerHTML=pronBarsHTML((userTurns[i]||{}).pa); } };   // 開くたびに最新paで描画
-  cc.appendChild(box);
-}
-// 各添削カードに「このラリーを質問」欄を付ける
-function attachRallyQA(cc, i){
-  const rq=document.createElement('div'); rq.style.marginTop='10px';
-  rq.innerHTML='<button class="btn-ghost btn-sm rq-toggle">💬 このラリーを質問</button>'+
-    '<div class="rq-body hidden" style="margin-top:8px">'+
-      '<div class="rq-log"></div>'+
-      '<textarea class="rq-in" placeholder="例）なぜこの言い方が自然？"></textarea>'+
-      '<div class="row" style="margin-top:6px">'+
-        '<div style="flex:0 0 auto"><button class="btn-ghost btn-sm rq-mic" type="button">🎤 音声</button></div>'+
-        '<div style="flex:1"><button class="btn-primary btn-sm rq-ask" style="width:100%">質問する</button></div>'+
-      '</div>'+
-    '</div>';
-  const toggle=rq.querySelector('.rq-toggle'), body=rq.querySelector('.rq-body'),
-        log=rq.querySelector('.rq-log'), ta=rq.querySelector('.rq-in'),
-        askBtn=rq.querySelector('.rq-ask'), mic=rq.querySelector('.rq-mic');
-  toggle.onclick=()=>{ const hid=body.classList.toggle('hidden'); toggle.textContent=hid?'💬 このラリーを質問':'✖ 質問を閉じる'; if(!hid){ try{ta.focus();}catch(e){} } };
-  mic.onclick=()=>{
-    if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
-    mic.textContent='🔴 話して...'; mic.disabled=true;
-    recognizeJa(t=>{ mic.textContent='🎤 音声'; mic.disabled=false; if(t){ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} } });
-  };
-  const ask=async()=>{
-    const q=(ta.value||'').trim(); if(!q) return; ta.value=''; askBtn.disabled=true;
-    const qEl=document.createElement('div'); qEl.className='msg user'; qEl.style.margin='0 0 8px';
-    qEl.innerHTML='<div class="who"><span>🙋 質問</span></div><div class="en">'+escapeHtml(q)+'</div>';
-    log.appendChild(qEl);
-    const load=loadingEl('コーチが考えています...'); log.appendChild(load);
-    try{
-      const a=await askAboutRally(i,q); load.remove();
-      const aEl=document.createElement('div'); aEl.className='fb'; aEl.style.margin='2px 0 8px';
-      aEl.innerHTML='<h4>🧑‍🏫 コーチの回答</h4><div style="font-size:14px;white-space:pre-wrap">'+escapeHtml(a)+'</div>';
-      log.appendChild(aEl);
-    }catch(e){ load.remove(); const er=document.createElement('div'); er.className='hint'; er.style.color='#c23a1f'; er.textContent='エラー: '+(e.message||''); log.appendChild(er); }
-    askBtn.disabled=false;
-  };
-  askBtn.onclick=ask;
-  ta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); ask(); } });
-  cc.appendChild(rq);
-}
-function makeQACard(){
-  const card=document.createElement('div'); card.className='card sys';
-  card.innerHTML='<h3 style="margin:0 0 6px;color:var(--palm)">💬 添削について質問する</h3>'+
-    '<div class="hint" style="margin-top:0">「なぜこの言い方？」「別の表現は？」など、日本語で質問できます。「ラリー3の…」のように番号で指定してもOK。</div>'+
-    '<div class="qalog" style="margin-top:10px"></div>'+
-    '<textarea class="qain" placeholder="例）ラリー3のおすすめの文、a bit と a little はどう違う？"></textarea>'+
-    '<div class="row" style="margin-top:8px">'+
-      '<div style="flex:0 0 auto"><button class="btn-ghost btn-sm qamic" type="button">🎤 音声で入力</button></div>'+
-      '<div style="flex:1"><button class="btn-primary qask" style="width:100%">質問する</button></div>'+
-    '</div>';
-  const log=card.querySelector('.qalog'), ta=card.querySelector('.qain'), btn=card.querySelector('.qask'), mic=card.querySelector('.qamic');
-  mic.onclick=()=>{
-    if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
-    mic.textContent='🔴 話してください...'; mic.disabled=true;
-    recognizeJa(t=>{ mic.textContent='🎤 音声で入力'; mic.disabled=false;
-      if(t){ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} } });
-  };
-  const ask=async()=>{
-    const q=(ta.value||'').trim(); if(!q) return;
-    ta.value=''; btn.disabled=true;
-    const qEl=document.createElement('div'); qEl.className='msg user';
-    qEl.innerHTML='<div class="who"><span>🙋 質問</span></div><div class="en">'+escapeHtml(q)+'</div>';
-    log.appendChild(qEl);
-    const load=loadingEl('コーチが考えています...'); log.appendChild(load);
-    try{
-      const a=await askAboutFeedback(q); load.remove();
-      const aEl=document.createElement('div'); aEl.className='fb'; aEl.style.margin='2px 0 12px';
-      aEl.innerHTML='<h4>🧑‍🏫 コーチの回答</h4><div style="font-size:14px;white-space:pre-wrap">'+escapeHtml(a)+'</div>';
-      log.appendChild(aEl);
-    }catch(e){ load.remove();
-      const er=document.createElement('div'); er.className='hint'; er.style.color='#c23a1f'; er.textContent='エラー: '+(e.message||''); log.appendChild(er);
-    }
-    btn.disabled=false; card.scrollIntoView({behavior:'smooth',block:'end'});
-  };
-  btn.onclick=ask;
-  ta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); ask(); } });
-  return card;
-}
-
 function renderSummary(sum){
-  lastSummary=sum; qaMessages=[]; rallyQA={};
-  // まとめ表示時は、これまでのやり取りの英文を隠さず表示（答え合わせ感）。和訳は隠したまま。
-  try{
-    document.querySelectorAll('#convo .msg.partner').forEach(m=>{
-      const en=m.querySelector('.en'); if(en) en.classList.remove('hidden');
-      const lis=m.querySelector('.listen'); if(lis) lis.style.display='none';
-      const be=m.querySelector('.tEn'); if(be) be.classList.add('on');
-    });
-  }catch(e){}
   const d=document.createElement('div'); d.className='card sys';
-  let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り＆添削</h3>';
+  let html='<h3 style="margin:0 0 10px;color:var(--sea2)">📊 今回の振り返り</h3>';
   if(sum){
     if(sum.good) html+='<div class="good-note">👍 '+escapeHtml(sum.good)+'</div>';
-    // 発話ごとの添削
-    if(sum.corrections&&sum.corrections.length){
-      html+='<div class="k" style="margin-top:14px">📝 発話ごとの添削</div><div style="margin-top:6px" class="corrwrap"></div>';
-    }
-    html+='<div class="k" style="margin-top:12px">🎯 意識したい改善ポイント</div><ol class="sumlist">';
+    html+='<div class="k" style="margin-top:12px">改善ポイント</div><ol class="sumlist">';
     (sum.points||[]).forEach(p=>{ html+='<li><b>'+escapeHtml(p.title)+'</b><br><span style="color:var(--muted);font-size:14px">'+escapeHtml(p.detail)+'</span></li>'; });
     html+='</ol>';
   }else{
     html+='<div style="color:var(--muted);font-size:14px">お疲れさまでした。今回の練習を終えました。</div>';
   }
   if(sessionWeakWords.length){
-    html+='<div class="k" style="margin-top:12px">🔊 発音で気をつけたい単語</div><div style="margin-top:4px">'+
+    html+='<div class="k" style="margin-top:12px">🎯 発音で気をつけたい単語</div><div style="margin-top:4px">'+
       sessionWeakWords.map(w=>'<span class="wchip">'+escapeHtml(w)+'</span>').join(' ')+'</div>';
   }
   if(sum&&sum.encouragement) html+='<div style="margin-top:12px">🌺 '+escapeHtml(sum.encouragement)+'</div>';
   d.innerHTML=html;
-  // 添削カードを組み立て（🔊で正しい英語を聞ける）
-  if(sum&&sum.corrections&&sum.corrections.length){
-    const wrap=d.querySelector('.corrwrap');
-    sum.corrections.forEach((c,i)=>{
-      const n=i+1;
-      const t=userTurns[i]||{};
-      const lv=c.level||'mid';
-      const badge=lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>';
-      const cc=document.createElement('div'); cc.className='corr';
-      const qBlock=(t.q_en)?('<div class="corr-q"><span class="corr-tag q">🧑 相手の問いかけ</span><div class="en">'+escapeHtml(t.q_en)+' <button class="speak qspk">🔊</button></div><div class="ja">'+escapeHtml(t.q_ja||'')+'</div></div>'):'';
-      cc.innerHTML='<div><span class="corr-num">ラリー '+n+'</span></div>'+
-        qBlock+
-        '<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
-        '<div class="cmt">💬 '+escapeHtml(c.comment)+'</div>'+
-        '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span><div class="en">'+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
-      const qb=cc.querySelector('.qspk'); if(qb) qb.onclick=()=>speak(t.q_en||'');
-      cc.querySelector('.speak:not(.qspk)').onclick=()=>speak(c.better||'');
-      attachPronScore(cc, i);
-      attachRallyQA(cc, i);
-      wrap.appendChild(cc);
-    });
-  }
   const btn=document.createElement('button'); btn.className='btn-primary'; btn.style.marginTop='16px'; btn.style.width='100%';
   btn.textContent='🏠 最初の画面に戻る';
   btn.onclick=()=>location.reload();
   d.appendChild(btn);
   $('convo').appendChild(d);
-  $('convo').appendChild(makeQACard());
   $('convo').appendChild(makePracticePanel(sessionWeakWords));
-  // 画面最下部にも「戻る」ボタン（質問で上のボタンが見つけにくくなるため）
-  const btm=document.createElement('button'); btm.className='btn-primary'; btm.style.width='100%'; btm.style.margin='4px 0 8px';
-  btm.textContent='🏠 最初の画面に戻る';
-  btm.onclick=()=>location.reload();
-  $('convo').appendChild(btm);
-  // 一番下ではなく「今回の振り返り＆添削」の見出しから表示する
-  setTimeout(()=>{ try{ d.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ scrollDown(); } }, 60);
+  scrollDown();
 }
 function showError(e){
   const msg=e&&e.message||'';

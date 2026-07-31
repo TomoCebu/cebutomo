@@ -1,0 +1,14 @@
+{
+  "name": "CebuTomoEnglish",
+  "short_name": "CebuTomo",
+  "description": "旅行英会話トレーナー",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#28b6cc",
+  "theme_color": "#28b6cc",
+  "icons": [
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
