@@ -861,9 +861,11 @@ const SUMMARY_TOOL={ name:'session_summary', description:'英会話練習セッ�
         original:{type:'string',description:'ユーザーが実際に発話した英文（音声認識テキストのまま）'},
         level:{type:'string',enum:['ok','mid','no'],description:'通じ具合 ok=良い mid=惜しい no=通じにくい'},
         comment:{type:'string',description:'日本語で、通じ具合・文法・自然さの要点を簡潔に。問題なければ「問題なし」'},
-        better:{type:'string',description:'より自然な英語の言い方（1文）'},
-        ja:{type:'string',description:'betterのニュアンスの日本語補足'}
-      },required:['original','level','comment','better','ja']}},
+        better:{type:'string',description:'より自然な英語の言い方①（丁寧で標準的な言い方・1文）'},
+        ja:{type:'string',description:'better①のニュアンスの日本語補足'},
+        better2:{type:'string',description:'別の自然な言い方②（①とは違う表現。もう一つの選択肢や、より短い/カジュアルな言い方など・1文）'},
+        ja2:{type:'string',description:'better2②のニュアンスの日本語補足'}
+      },required:['original','level','comment','better','ja','better2','ja2']}},
     points:{type:'array',description:'特に意識したい改善テーマ3〜5個',
       items:{type:'object',properties:{title:{type:'string'},detail:{type:'string'}},required:['title','detail']}},
     encouragement:{type:'string',description:'次回への一言（日本語）'}
@@ -873,7 +875,7 @@ async function summarize(){
   const list=userTurns.map((t,i)=>(i+1)+'. "'+t.en+'"').join('\n');
   const msgs=messages.concat([{role:'user',content:
     'ここで練習を終えます。この会話での私（日本人の英語学習者）の英語発話は次の通りです:\n'+list+
-    '\n\nsession_summaryツールで返してください。corrections には上の各発話を順番に1つずつ入れ、original（発話そのまま）, level(ok/mid/no), comment（日本語で通じ具合・文法・自然さの要点。問題なければ「問題なし」）, better（より自然な英語）, ja（ニュアンス）を必ず埋めてください。全体のgood, 改善テーマpoints(3〜5), encouragement も日本語で。'}]);
+    '\n\nsession_summaryツールで返してください。corrections には上の各発話を順番に1つずつ入れ、original（発話そのまま）, level(ok/mid/no), comment（日本語で通じ具合・文法・自然さの要点。問題なければ「問題なし」）, better（より自然な英語①：丁寧で標準的）, ja（①のニュアンス）, better2（別の自然な言い方②）, ja2（②のニュアンス）を必ず埋めてください。better と better2 は必ず異なる表現にすること。全体のgood, 改善テーマpoints(3〜5), encouragement も日本語で。'}]);
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -1155,7 +1157,7 @@ function saveSession(sum){
       corrections:[], weakWords:(sessionWeakWords||[]).slice() };
     const cs=(sum&&sum.corrections)||[];
     cs.forEach((c,i)=>{ const t=userTurns[i]||{}; rec.corrections.push({ q_en:t.q_en||'', q_ja:t.q_ja||'',
-      original:c.original||'', level:c.level||'mid', comment:c.comment||'', better:c.better||'', ja:c.ja||'' }); });
+      original:c.original||'', level:c.level||'mid', comment:c.comment||'', better:c.better||'', ja:c.ja||'', better2:c.better2||'', ja2:c.ja2||'' }); });
     hist.unshift(rec);
     while(hist.length>60) hist.pop();   // 保存は最新60セッションまで
     localStorage.setItem('te_history', JSON.stringify(hist));
@@ -1169,16 +1171,22 @@ function openReview(){
 }
 function closeReview(){ $('reviewHome').innerHTML=''; $('setupCard').classList.remove('hidden'); window.scrollTo({top:0,behavior:'smooth'}); }
 function levelBadge(lv){ return lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>'; }
-function mistakeRow(m){
+function normBetter(s){ return (s||'').trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(); }
+function mistakeRow(m, betterCount){
   const row=document.createElement('div'); row.className='mrow';
   const detail=(m.q_en||m.comment);
   const more=detail?('<div class="more hidden">'+
     (m.q_en?'<div>🧑 '+escapeHtml(m.q_en)+(m.q_ja?'（'+escapeHtml(m.q_ja)+'）':'')+'</div>':'')+
     (m.comment?'<div style="margin-top:4px">💬 '+escapeHtml(m.comment)+'</div>':'')+'</div>'):'';
-  row.innerHTML='<div class="meta"><span><span class="tag">'+escapeHtml(m.catLabel)+'</span> '+escapeHtml(m.date)+'</span>'+levelBadge(m.level)+'</div>'+
+  const rc=betterCount?betterCount[normBetter(m.better)]:0;
+  const rep=(rc&&rc>1)?' <span class="tag" style="background:#ffe0d8;color:#c23a1f">くり返し ×'+rc+'</span>':'';
+  const rec2=(m.better2)?('<div class="rec">✅② '+escapeHtml(m.better2)+' <button class="speak sp-rec2">🔊</button></div>'):'';
+  row.innerHTML='<div class="meta"><span><span class="tag">'+escapeHtml(m.catLabel)+'</span> '+escapeHtml(m.date)+'</span><span>'+rep+' '+levelBadge(m.level)+'</span></div>'+
     '<div class="you">🗣 '+escapeHtml(m.original)+'</div>'+
-    '<div class="rec">✅ '+escapeHtml(m.better)+' <button class="speak sp-rec">🔊</button>'+(detail?' <button class="speak mtoggle">▾ 詳細</button>':'')+'</div>'+more;
+    '<div class="rec">✅① '+escapeHtml(m.better)+' <button class="speak sp-rec">🔊</button>'+(detail?' <button class="speak mtoggle">▾ 詳細</button>':'')+'</div>'+
+    rec2+more;
   row.querySelector('.sp-rec').onclick=()=>speak(m.better||'');
+  const s2=row.querySelector('.sp-rec2'); if(s2) s2.onclick=()=>speak(m.better2||'');
   const mt=row.querySelector('.mtoggle');
   if(mt){ const mm=row.querySelector('.more'); mt.onclick=()=>{ const hid=mm.classList.toggle('hidden'); mt.textContent=hid?'▾ 詳細':'▴ 閉じる'; }; }
   return row;
@@ -1205,6 +1213,13 @@ function renderReview(){
     (s.weakWords||[]).forEach(w=>{ wc[w]=(wc[w]||0)+1; });
   });
   const words=Object.keys(wc).sort((a,b)=>wc[b]-wc[a]);
+  // 同系の間違い（同じおすすめ文になったもの）の回数
+  const betterCount={};
+  mistakes.forEach(m=>{ const k=normBetter(m.better); if(k) betterCount[k]=(betterCount[k]||0)+1; });
+  // 意識したい改善ポイントの集計（よく出る順・回数付き）
+  const pAgg={};
+  hist.forEach(s=>{ (s.points||[]).forEach(p=>{ const k=(p.title||'').trim(); if(!k) return; if(!pAgg[k]) pAgg[k]={count:0,detail:p.detail||''}; pAgg[k].count++; if(p.detail) pAgg[k].detail=p.detail; }); });
+  const pKeys=Object.keys(pAgg).sort((a,b)=>pAgg[b].count-pAgg[a].count);
   // 検索＆場面フィルタ
   const bar=document.createElement('div'); bar.className='rvbar';
   bar.innerHTML='<input type="text" class="rv-q" placeholder="🔍 語句で検索（例: airport）">'+
@@ -1214,7 +1229,7 @@ function renderReview(){
   const listWrap=document.createElement('div'); card.appendChild(listWrap);
   const more=document.createElement('button'); more.className='btn-ghost btn-sm'; more.style.width='100%'; more.style.marginTop='4px'; more.textContent='さらに表示'; card.appendChild(more);
   let shown=0, filtered=[]; const PAGE=20;
-  function renderMore(){ filtered.slice(shown,shown+PAGE).forEach(m=>listWrap.appendChild(mistakeRow(m))); shown=Math.min(shown+PAGE,filtered.length); more.style.display=shown<filtered.length?'':'none'; }
+  function renderMore(){ filtered.slice(shown,shown+PAGE).forEach(m=>listWrap.appendChild(mistakeRow(m, betterCount))); shown=Math.min(shown+PAGE,filtered.length); more.style.display=shown<filtered.length?'':'none'; }
   function applyFilter(){
     const q=(bar.querySelector('.rv-q').value||'').trim().toLowerCase();
     const cat=bar.querySelector('.rv-cat').value;
@@ -1230,6 +1245,15 @@ function renderReview(){
   bar.querySelector('.rv-cat').addEventListener('change',applyFilter);
   more.onclick=renderMore;
   applyFilter();
+  // 意識したい改善ポイント（よく出る順・回数付き）
+  if(pKeys.length){
+    const pc=document.createElement('div'); pc.className='card sys';
+    pc.innerHTML='<h4 style="margin:0 0 8px;color:var(--palm)">🎯 意識したい改善ポイント（よく出る順）</h4>'+
+      pKeys.slice(0,20).map(k=>'<div class="mrow"><div class="meta"><span><b>'+escapeHtml(k)+'</b></span>'+
+        (pAgg[k].count>1?'<span class="tag" style="background:#ffedc2;color:#a9721a">×'+pAgg[k].count+'</span>':'')+'</div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-top:4px">'+escapeHtml(pAgg[k].detail)+'</div></div>').join('');
+    box.appendChild(pc);
+  }
   // 弱点単語（コンパクト）
   if(words.length){
     const w=document.createElement('div'); w.className='card sys';
@@ -1293,9 +1317,13 @@ function renderSummary(sum){
         qBlock+
         '<div class="corr-you"><span class="corr-tag you">🗣 あなたの答え</span> '+badge+'<div class="t">'+escapeHtml(c.original)+'</div></div>'+
         '<div class="cmt">💬 '+escapeHtml(c.comment)+'</div>'+
-        '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span><div class="en">'+escapeHtml(c.better)+' <button class="speak">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div></div>';
+        '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span>'+
+          '<div class="en">① '+escapeHtml(c.better)+' <button class="speak sp1">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div>'+
+          (c.better2?'<div class="en" style="margin-top:6px">② '+escapeHtml(c.better2)+' <button class="speak sp2">🔊</button></div><div class="ja">'+escapeHtml(c.ja2||'')+'</div>':'')+
+        '</div>';
       const qb=cc.querySelector('.qspk'); if(qb) qb.onclick=()=>speak(t.q_en||'');
-      cc.querySelector('.speak:not(.qspk)').onclick=()=>speak(c.better||'');
+      const sp1=cc.querySelector('.sp1'); if(sp1) sp1.onclick=()=>speak(c.better||'');
+      const sp2=cc.querySelector('.sp2'); if(sp2) sp2.onclick=()=>speak(c.better2||'');
       attachPronScore(cc, i);
       attachRallyQA(cc, i);
       wrap.appendChild(cc);
