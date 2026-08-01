@@ -155,6 +155,16 @@
   .qain{margin-top:10px}
   .corr-num{display:inline-block;background:var(--sea2);color:#fff;border-radius:20px;min-width:44px;text-align:center;
     font-weight:800;font-size:12px;padding:2px 10px;margin-bottom:8px}
+  /* 復習コーナー（コンパクト） */
+  .rvbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 8px}
+  .rvbar input,.rvbar select{flex:1;min-width:130px;width:auto;padding:9px 11px;font-size:14px}
+  .mrow{border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:8px;background:rgba(255,255,255,.62)}
+  .mrow .meta{font-size:11px;color:var(--muted);font-weight:700;display:flex;gap:6px;align-items:center;justify-content:space-between}
+  .mrow .tag{background:#eaf6fa;color:var(--sea2);border-radius:20px;padding:1px 8px;font-size:11px;font-weight:800}
+  .mrow .you{font-size:14px;color:#c23a1f;margin-top:5px}
+  .mrow .rec{font-size:14px;color:#0d6e5a;font-weight:600;margin-top:2px}
+  .mrow .more{margin-top:8px;font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px}
+  .mrow .speak{font-size:12px}
 </style>
 </head>
 <body>
@@ -1159,64 +1169,84 @@ function openReview(){
 }
 function closeReview(){ $('reviewHome').innerHTML=''; $('setupCard').classList.remove('hidden'); window.scrollTo({top:0,behavior:'smooth'}); }
 function levelBadge(lv){ return lv==='ok'?'<span class="badge ok">通じる</span>':lv==='no'?'<span class="badge no">通じにくい</span>':'<span class="badge mid">惜しい</span>'; }
+function mistakeRow(m){
+  const row=document.createElement('div'); row.className='mrow';
+  const detail=(m.q_en||m.comment);
+  const more=detail?('<div class="more hidden">'+
+    (m.q_en?'<div>🧑 '+escapeHtml(m.q_en)+(m.q_ja?'（'+escapeHtml(m.q_ja)+'）':'')+'</div>':'')+
+    (m.comment?'<div style="margin-top:4px">💬 '+escapeHtml(m.comment)+'</div>':'')+'</div>'):'';
+  row.innerHTML='<div class="meta"><span><span class="tag">'+escapeHtml(m.catLabel)+'</span> '+escapeHtml(m.date)+'</span>'+levelBadge(m.level)+'</div>'+
+    '<div class="you">🗣 '+escapeHtml(m.original)+'</div>'+
+    '<div class="rec">✅ '+escapeHtml(m.better)+' <button class="speak sp-rec">🔊</button>'+(detail?' <button class="speak mtoggle">▾ 詳細</button>':'')+'</div>'+more;
+  row.querySelector('.sp-rec').onclick=()=>speak(m.better||'');
+  const mt=row.querySelector('.mtoggle');
+  if(mt){ const mm=row.querySelector('.more'); mt.onclick=()=>{ const hid=mm.classList.toggle('hidden'); mt.textContent=hid?'▾ 詳細':'▴ 閉じる'; }; }
+  return row;
+}
 function renderReview(){
   const hist=getHistory();
   const box=$('reviewHome'); box.innerHTML='';
   const card=document.createElement('div'); card.className='card sys';
-  // ヘッダ
-  let head='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
-    '<h3 style="margin:0;color:var(--sea2)">📚 履歴・復習</h3>'+
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+    '<h3 style="margin:0;color:var(--sea2)">📚 間違いのおさらい</h3>'+
     '<button class="btn-ghost btn-sm rv-close">✖ 閉じる</button></div>';
-  // 集計：間違い（level!=ok）と弱点単語
-  const mistakes=[]; const wordCount={};
-  hist.forEach(s=>{
-    (s.corrections||[]).forEach(c=>{ if(c.level && c.level!=='ok') mistakes.push(Object.assign({date:s.date,catLabel:s.catLabel},c)); });
-    (s.weakWords||[]).forEach(w=>{ wordCount[w]=(wordCount[w]||0)+1; });
-  });
-  const words=Object.keys(wordCount).sort((a,b)=>wordCount[b]-wordCount[a]);
-  let stat='<div class="hint" style="margin-top:8px">練習セッション <b>'+hist.length+'</b> 件／要復習の言い方 <b>'+mistakes.length+'</b> 件／弱点単語 <b>'+words.length+'</b> 語</div>';
-  if(!hist.length){ stat='<div class="hint" style="margin-top:8px">まだ履歴がありません。会話を1回終えると、ここに間違いや弱点がたまっていきます。</div>'; }
-  card.innerHTML=head+stat;
   box.appendChild(card);
-  if(!hist.length){ card.querySelector('.rv-close').onclick=closeReview; return; }
-
-  // 弱点単語
+  card.querySelector('.rv-close').onclick=closeReview;
+  if(!hist.length){
+    const e=document.createElement('div'); e.className='hint'; e.style.margin='10px 2px'; e.textContent='まだ履歴がありません。会話を1回終えると、ここに間違いや弱点がたまっていきます。';
+    card.appendChild(e);
+    const b=document.createElement('button'); b.className='btn-ghost'; b.style.width='100%'; b.style.marginTop='10px'; b.textContent='🏠 ホームに戻る'; b.onclick=closeReview; card.appendChild(b);
+    return;
+  }
+  // 集計
+  const mistakes=[]; const wc={}; const cats=[];
+  hist.forEach(s=>{
+    (s.corrections||[]).forEach(c=>{ if(c.level&&c.level!=='ok'){ mistakes.push(Object.assign({date:s.date,catLabel:s.catLabel},c)); if(cats.indexOf(s.catLabel)<0) cats.push(s.catLabel); } });
+    (s.weakWords||[]).forEach(w=>{ wc[w]=(wc[w]||0)+1; });
+  });
+  const words=Object.keys(wc).sort((a,b)=>wc[b]-wc[a]);
+  // 検索＆場面フィルタ
+  const bar=document.createElement('div'); bar.className='rvbar';
+  bar.innerHTML='<input type="text" class="rv-q" placeholder="🔍 語句で検索（例: airport）">'+
+    '<select class="rv-cat"><option value="">すべての場面</option>'+cats.map(c=>'<option>'+escapeHtml(c)+'</option>').join('')+'</select>';
+  card.appendChild(bar);
+  const stat=document.createElement('div'); stat.className='hint'; stat.style.margin='0 2px 8px'; card.appendChild(stat);
+  const listWrap=document.createElement('div'); card.appendChild(listWrap);
+  const more=document.createElement('button'); more.className='btn-ghost btn-sm'; more.style.width='100%'; more.style.marginTop='4px'; more.textContent='さらに表示'; card.appendChild(more);
+  let shown=0, filtered=[]; const PAGE=20;
+  function renderMore(){ filtered.slice(shown,shown+PAGE).forEach(m=>listWrap.appendChild(mistakeRow(m))); shown=Math.min(shown+PAGE,filtered.length); more.style.display=shown<filtered.length?'':'none'; }
+  function applyFilter(){
+    const q=(bar.querySelector('.rv-q').value||'').trim().toLowerCase();
+    const cat=bar.querySelector('.rv-cat').value;
+    filtered=mistakes.filter(m=>{
+      if(cat && m.catLabel!==cat) return false;
+      if(q){ const hay=((m.original||'')+' '+(m.better||'')+' '+(m.comment||'')+' '+(m.q_en||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+      return true;
+    });
+    listWrap.innerHTML=''; shown=0; renderMore();
+    stat.innerHTML='セッション <b>'+hist.length+'</b> 件／該当する間違い <b>'+filtered.length+'</b> 件';
+  }
+  bar.querySelector('.rv-q').addEventListener('input',applyFilter);
+  bar.querySelector('.rv-cat').addEventListener('change',applyFilter);
+  more.onclick=renderMore;
+  applyFilter();
+  // 弱点単語（コンパクト）
   if(words.length){
     const w=document.createElement('div'); w.className='card sys';
-    w.innerHTML='<h4 style="margin:0 0 8px;color:var(--coral2)">🔊 弱点単語（回数）</h4>'+
-      '<div>'+words.slice(0,40).map(x=>'<span class="wchip pick" data-w="'+escapeHtml(x)+'">'+escapeHtml(x)+' ×'+wordCount[x]+'</span>').join(' ')+'</div>'+
-      '<div class="hint">タップすると発音練習に追加できます。</div>'+
-      '<div class="drills" style="margin-top:10px"></div>';
+    w.innerHTML='<h4 style="margin:0 0 6px;color:var(--coral2)">🔊 弱点単語（回数）</h4>'+
+      '<div>'+words.slice(0,40).map(x=>'<span class="wchip pick" data-w="'+escapeHtml(x)+'">'+escapeHtml(x)+' ×'+wc[x]+'</span>').join(' ')+'</div>'+
+      '<div class="drills" style="margin-top:8px"></div>';
     const dr=w.querySelector('.drills');
     w.querySelectorAll('.pick').forEach(ch=>ch.onclick=()=>dr.prepend(makeDrill(ch.getAttribute('data-w'))));
     box.appendChild(w);
   }
-
-  // 間違いノート（新しい順、最大60件）
-  const mn=document.createElement('div'); mn.className='card sys';
-  let mh='<h4 style="margin:0 0 8px;color:var(--palm)">📝 間違いノート（惜しい・通じにくい）</h4>';
-  if(!mistakes.length){ mh+='<div class="hint">要復習の言い方はありません。よくできています！</div>'; }
-  mn.innerHTML=mh; box.appendChild(mn);
-  mistakes.slice(0,60).forEach(m=>{
-    const cc=document.createElement('div'); cc.className='corr';
-    const q=(m.q_en)?('<div class="corr-q"><span class="corr-tag q">🧑 相手</span><div class="en">'+escapeHtml(m.q_en)+'</div>'+(m.q_ja?'<div class="ja">'+escapeHtml(m.q_ja)+'</div>':'')+'</div>'):'';
-    cc.innerHTML='<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px">'+escapeHtml(m.date)+' ・ '+escapeHtml(m.catLabel)+'</div>'+
-      q+
-      '<div class="corr-you"><span class="corr-tag you">🗣 あなた</span> '+levelBadge(m.level)+'<div class="t">'+escapeHtml(m.original)+'</div></div>'+
-      (m.comment?'<div class="cmt">💬 '+escapeHtml(m.comment)+'</div>':'')+
-      '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめ</span><div class="en">'+escapeHtml(m.better)+' <button class="speak">🔊</button></div>'+(m.ja?'<div class="ja">'+escapeHtml(m.ja)+'</div>':'')+'</div>';
-    cc.querySelector('.speak').onclick=()=>speak(m.better||'');
-    mn.appendChild(cc);
-  });
-
   // 操作
   const ops=document.createElement('div'); ops.className='card sys';
-  ops.innerHTML='<div class="row"><div style="flex:1"><button class="btn-ghost" id="rvBack" style="width:100%">🏠 ホームに戻る</button></div>'+
-    '<div style="flex:0 0 auto"><button class="btn-ghost btn-sm" id="rvClear">🗑 履歴を消去</button></div></div>';
+  ops.innerHTML='<div class="row"><div style="flex:1"><button class="btn-ghost rv-home" style="width:100%">🏠 ホームに戻る</button></div>'+
+    '<div style="flex:0 0 auto"><button class="btn-ghost btn-sm rv-clear">🗑 履歴を消去</button></div></div>';
   box.appendChild(ops);
-  card.querySelector('.rv-close').onclick=closeReview;
-  ops.querySelector('#rvBack').onclick=closeReview;
-  ops.querySelector('#rvClear').onclick=()=>{ if(confirm('保存した練習履歴をすべて消去しますか？（元に戻せません）')){ localStorage.removeItem('te_history'); renderReview(); } };
+  ops.querySelector('.rv-home').onclick=closeReview;
+  ops.querySelector('.rv-clear').onclick=()=>{ if(confirm('保存した練習履歴をすべて消去しますか？（元に戻せません）')){ localStorage.removeItem('te_history'); renderReview(); } };
 }
 
 function renderSummary(sum){
