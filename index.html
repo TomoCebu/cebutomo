@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>CebuTomoEnglish</title>
-<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.44.1/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
 <style>
   :root{
     --sky:#8fe0f2; --sea:#28b6cc; --sea2:#1a93b4; --sand:#fce6c0; --sand2:#f7d9a8;
@@ -654,10 +654,13 @@ function encodeWav(samples, rate){
 }
 
 // ---- Azure 発音採点（ファイル単位・録音済みblobから。バックグラウンドで実行） ----
+let lastPronError='';
 function azureReady(){ return $('azureKey').value.trim() && $('azureRegion').value.trim() && window.SpeechSDK; }
 async function assessPronunciation(recBlob, referenceText){
   if(!azureReady()) return null;
-  const wavBlob=await blobToWav(recBlob);
+  let wavBlob;
+  try{ wavBlob=await blobToWav(recBlob); }
+  catch(e){ lastPronError='音声の変換に失敗: '+String((e&&e.message)||e); return null; }
   const SDK=window.SpeechSDK;
   const speechConfig=SDK.SpeechConfig.fromSubscription($('azureKey').value.trim(), $('azureRegion').value.trim());
   speechConfig.speechRecognitionLanguage='en-US';
@@ -670,14 +673,17 @@ async function assessPronunciation(recBlob, referenceText){
     reco.recognizeOnceAsync(result=>{
       let out=null;
       try{
+        if(result.reason===SDK.ResultReason.Canceled){
+          try{ const cd=SDK.CancellationDetails.fromResult(result); lastPronError=String(cd.errorDetails||cd.reason||'canceled'); }catch(e){}
+        }
         const r=SDK.PronunciationAssessmentResult.fromResult(result);
         let words=[];
         try{ words=(r.detailResult.Words||[]).map(x=>({w:x.Word, acc:x.PronunciationAssessment&&x.PronunciationAssessment.AccuracyScore, err:x.PronunciationAssessment&&x.PronunciationAssessment.ErrorType})); }catch(e){}
         out={ accuracy:r.accuracyScore, fluency:r.fluencyScore, completeness:r.completenessScore, pron:r.pronunciationScore, prosody:r.prosodyScore, words };
-      }catch(e){}
+      }catch(e){ if(!lastPronError) lastPronError=String((e&&e.message)||e); }
       try{reco.close();}catch(e){}
       resolve(out);
-    }, ()=>{ try{reco.close();}catch(e){} resolve(null); });
+    }, (err)=>{ lastPronError=String(err||'recognizer error'); try{reco.close();}catch(e){} resolve(null); });
   });
 }
 function collectWeak(pa){
@@ -879,9 +885,9 @@ async function summarize(){
   const res=await fetchRetry('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({ model:$('model').value, max_tokens:1600, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
+    body:JSON.stringify({ model:$('model').value, max_tokens:4096, messages:msgs, tools:[SUMMARY_TOOL], tool_choice:{type:'tool',name:'session_summary'} })
   });
-  if(!res.ok) throw new Error('summary '+res.status);
+  if(!res.ok) throw new Error('summary '+res.status+': '+(await res.text()).slice(0,150));
   const data=await res.json();
   const tu=(data.content||[]).find(c=>c.type==='tool_use');
   if(tu&&tu.input) return tu.input;
@@ -890,15 +896,34 @@ async function summarize(){
 async function endWithSummary(){
   stopAllCapture();
   $('inputCard').classList.add('hidden');
-  let sum=null;
-  if(userTurns.length){
-    const load=loadingEl('今回の会話をまとめて添削中...'); $('convo').appendChild(load); scrollDown();
-    // 走っている発音採点を少し待つ（最大2.5秒）
-    try{ await Promise.race([Promise.resolve(), new Promise(r=>setTimeout(r,2500))]); }catch(e){}
-    try{ sum=await summarize(); }catch(e){}
-    load.remove();
+  if(!userTurns.length){ renderSummary(null); return; }
+  const load=loadingEl('今回の会話をまとめて添削中...'); $('convo').appendChild(load); scrollDown();
+  try{ await new Promise(r=>setTimeout(r,1500)); }catch(e){}   // 発音採点を少し待つ
+  let sum=null, err=null;
+  for(let attempt=0; attempt<2 && !sum; attempt++){
+    try{ sum=await summarize(); }catch(e){ err=e; }
   }
-  renderSummary(sum);
+  load.remove();
+  if(sum) renderSummary(sum);
+  else renderSummaryError(err);
+}
+function renderSummaryError(err){
+  const msg=(err&&err.message)||'原因不明のエラー';
+  const net=/load failed|failed to fetch|networkerror|network error/i.test(msg);
+  const lowbal=/credit balance is too low|insufficient|402/i.test(msg);
+  let note;
+  if(lowbal) note='Claudeのクレジット残高が不足している可能性があります（console.anthropic.com で確認・チャージ）。';
+  else if(net) note='通信が不安定だった可能性があります。電波を確認して「添削をもう一度」を押してください。';
+  else note='一時的なエラーの可能性があります。「添削をもう一度」で再試行できます。';
+  const d=document.createElement('div'); d.className='card sys'; d.style.borderColor='#f2a596';
+  d.innerHTML='<h3 style="margin:0 0 8px;color:#c23a1f">⚠️ 添削の作成に失敗しました</h3>'+
+    '<div style="font-size:13px;color:var(--muted)">'+escapeHtml(msg)+'</div>'+
+    '<div class="hint">'+note+'</div>';
+  const btn=document.createElement('button'); btn.className='btn-primary'; btn.style.width='100%'; btn.style.marginTop='12px'; btn.textContent='🔁 添削をもう一度';
+  btn.onclick=()=>{ d.remove(); endWithSummary(); };
+  const home=document.createElement('button'); home.className='btn-ghost'; home.style.width='100%'; home.style.marginTop='8px'; home.textContent='🏠 最初の画面に戻る'; home.onclick=()=>location.reload();
+  d.appendChild(btn); d.appendChild(home);
+  $('convo').appendChild(d); scrollDown();
 }
 
 // ---- 単語の発音練習ドリル ----
@@ -1045,7 +1070,14 @@ async function askAboutRally(i,q){
 }
 // 発音スコアのバー（保持済みのpaデータから描くだけ＝軽い）
 function pronBarsHTML(pa){
-  if(!pa) return '<div class="hint" style="margin:0">この発話の発音採点データはありません（Azure未設定、または音声が短い等）。</div>';
+  if(!pa){
+    let why;
+    if(!window.SpeechSDK) why='Azureの音声SDKが読み込めていません（通信環境や拡張機能のブロックの可能性）。';
+    else if(!($('azureKey').value.trim()&&$('azureRegion').value.trim())) why='Azureのキー/リージョンが未設定です。';
+    else if(lastPronError) why='Azure発音採点のエラー: '+escapeHtml(String(lastPronError).slice(0,160))+'（無料枠5時間の超過やキー無効の可能性）';
+    else why='この発話は音声が短い、または採点データを取得できませんでした。';
+    return '<div class="hint" style="margin:0">'+why+'</div>';
+  }
   const rows=[['総合',pa.pron],['正確さ',pa.accuracy],['流暢さ',pa.fluency],['抑揚',pa.prosody],['完全性',pa.completeness]].filter(r=>r[1]!=null);
   if(!rows.length) return '<div class="hint" style="margin:0">発音採点データを取得できませんでした。</div>';
   const bars=rows.map(r=>{ const v=Math.round(r[1]); return '<div class="scrow"><span class="scl">'+r[0]+'</span>'+
