@@ -287,11 +287,12 @@
     <div class="hint" id="micHint"></div>
   </div>
 
-  <div class="foot">🌺 ローカル完結アプリ / 会話=Claude, 文字起こし=Whisper</div>
+  <div class="foot" id="foot">🌺 ローカル完結アプリ / 会話=Claude, 文字起こし=Whisper</div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+const APP_VERSION='2026.10.07a';   // ★公開のたびにここを更新（例: 2026.10.08a）
 
 /* ===== 埋め込みキー（簡易難読化: XOR + base64）=====
    強固な暗号ではありません。GitHubの自動検知・自動失効を避けつつ、
@@ -429,6 +430,7 @@ $('voiceListBtn').onclick=()=>{
   if(!$('azureRegion').value) $('azureRegion').value=_dk(_EMB.REG);
   $('settingsBox').open=false;   // キーが入っているので初期は閉じる
 })();
+try{ $('foot').textContent='🌺 CebuTomoEnglish  ver '+APP_VERSION+'  ・ 音声=OpenAI / 会話=Claude'; }catch(e){}
 $('apiKey').addEventListener('change',e=>localStorage.setItem('te_key',e.target.value.trim()));
 $('openaiKey').addEventListener('change',e=>localStorage.setItem('te_okey',e.target.value.trim()));
 $('azureKey').addEventListener('change',e=>localStorage.setItem('te_azkey',e.target.value.trim()));
