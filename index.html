@@ -230,6 +230,7 @@
           </div>
         </div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="confirmChk"> 認識結果を確認してから送る（誤認識を防ぐ）</label>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="pronChk" checked> 発音評価を使う（OpenAI音声・ややコスト高）</label>
         <div class="hint">💾 キーはアプリに埋め込み済みで、変更した場合のみ各端末のブラウザ内に保存されます。</div>
         <div style="margin-top:14px">
           <button class="btn-ghost btn-sm" id="voiceListBtn" type="button">🔊 この端末で使える音声を見る</button>
@@ -398,9 +399,12 @@ const CAT_LABEL={air:'空港チェックイン',hotel:'ホテルチェックイ�
   g('te_key','apiKey'); g('te_okey','openaiKey'); g('te_model','model'); g('te_rate','rate');
   g('te_azkey','azureKey'); g('te_azreg','azureRegion'); g('te_phrases','phrases');
   const c=localStorage.getItem('te_confirm'); if(c!=null) $('confirmChk').checked=(c==='1');
+  const pc=localStorage.getItem('te_pron'); if(pc!=null) $('pronChk').checked=(pc==='1');
 })();
 $('confirmChk').addEventListener('change',e=>localStorage.setItem('te_confirm',e.target.checked?'1':'0'));
 function confirmOn(){ return $('confirmChk') && $('confirmChk').checked; }
+$('pronChk').addEventListener('change',e=>localStorage.setItem('te_pron',e.target.checked?'1':'0'));
+function pronOn(){ return $('pronChk') && $('pronChk').checked; }
 // この端末で使える音声の一覧＋試聴（設定内）
 $('voiceListBtn').onclick=()=>{
   const vs=speechSynthesis.getVoices()||[];
@@ -437,12 +441,7 @@ $('rate').addEventListener('change',e=>localStorage.setItem('te_rate',e.target.v
 document.querySelectorAll('.preset').forEach(b=>{ b.onclick=()=>startConversation(b.getAttribute('data-sit'), b.getAttribute('data-cat')); });
 $('practiceBtn').onclick=()=>{ if(!$('practiceHome').hasChildNodes()) $('practiceHome').appendChild(makePracticePanel([])); $('practiceHome').scrollIntoView({behavior:'smooth'}); };
 $('reviewBtn').onclick=()=>openReview();
-$('sitMic').onclick=()=>{
-  if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
-  $('sitMic').textContent='🔴 話してください...'; $('sitMic').disabled=true;
-  recognizeJa(t=>{ $('sitMic').textContent='🎤 音声で入力'; $('sitMic').disabled=false;
-    if(t){ $('situation').value=($('situation').value?$('situation').value+' ':'')+t; } });
-};
+$('sitMic').onclick=()=>{ jaMicToggle($('sitMic'), t=>{ $('situation').value=($('situation').value?$('situation').value+' ':'')+t; }); };
 
 // ---- 音声合成（読み上げ） ----
 let ttsPlaying=false;
@@ -613,7 +612,7 @@ async function whisper(blob,type){
 // 確認済み（または自動）の発話を送る。発音採点は最終テキストを基準にバックグラウンドで行う。
 function sendFromPending(text){
   let paPromise=null;
-  if(azureReady() && pendingBlob){ paPromise=assessPronunciation(pendingBlob, text).catch(()=>null); }
+  if(pendingBlob && pronOn()){ paPromise=assessPronunciationOpenAI(pendingBlob, text).catch(()=>null); }
   pendingBlob=null; pendingType=null;
   submitAnswer(text, paPromise);
 }
@@ -623,6 +622,37 @@ function showConfirmBox(text){
   showManualBox(text);
   $('sendBtn').textContent='✅ これで送信';
   try{ $('answer').focus(); }catch(e){}
+}
+
+// 日本語の音声入力（録音→Whisperで文字起こし・トグル式）
+async function whisperJa(blob,type){
+  const okey=$('openaiKey').value.trim();
+  if(!okey) throw new Error('OpenAIキーが未設定です');
+  const ext=/mp4|aac|m4a/i.test(type)?'mp4':(/mpeg|mp3/i.test(type)?'mp3':'webm');
+  const fd=new FormData(); fd.append('file',blob,'audio.'+ext); fd.append('model','gpt-4o-transcribe'); fd.append('language','ja');
+  fd.append('prompt','日本語の短い発話。旅行英会話アプリでの場面説明や、添削への質問。');
+  const res=await fetchRetry('https://api.openai.com/v1/audio/transcriptions',{method:'POST', headers:{'Authorization':'Bearer '+okey}, body:fd});
+  if(!res.ok) throw new Error('Whisper '+res.status+': '+(await res.text()).slice(0,120));
+  const data=await res.json(); return data.text||'';
+}
+async function jaMicToggle(btn, onText){
+  if(btn._recording){ btn._recording=false; try{ btn._rec.stop(); }catch(e){} return; }
+  if(!$('openaiKey').value.trim()){ alert('音声入力にはOpenAIキーが必要です（設定）。'); return; }
+  let stream; try{ stream=await ensureStream(); }catch(e){ alert('マイクを使用できません'); return; }
+  const m=pickMime(); let rec;
+  try{ rec=new MediaRecorder(stream, m?{mimeType:m}:undefined); }catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ alert('録音できません'); releaseMic(); return; } }
+  const chunks=[]; rec.ondataavailable=ev=>{ if(ev.data&&ev.data.size) chunks.push(ev.data); };
+  btn._label = btn._label || btn.textContent;
+  rec.onstop=async()=>{
+    const blob=new Blob(chunks,{type:(rec&&rec.mimeType)||'audio/webm'}); releaseMic();
+    btn.disabled=true; btn.textContent='⏳ 文字起こし中...';
+    try{ const t=await whisperJa(blob,(rec&&rec.mimeType)||'audio/webm'); if(t && onText) onText(t); }
+    catch(e){ alert('文字起こしエラー: '+(e.message||'')); }
+    btn.disabled=false; btn.textContent=btn._label;
+  };
+  btn._rec=rec; btn._recording=true;
+  try{ rec.start(); }catch(e){ alert('録音を開始できません'); releaseMic(); btn._recording=false; return; }
+  btn.textContent='🔴 停止（話し終わったら押す）';
 }
 
 // ---- 録音音声を16kHzモノラルWAVへ変換（Azure採点用） ----
@@ -689,9 +719,39 @@ async function assessPronunciation(recBlob, referenceText){
 function collectWeak(pa){
   if(!pa) return;
   (pa.words||[]).forEach(w=>{
-    const bad=(w.err&&w.err!=='None')||(w.acc!=null&&w.acc<70);
+    const bad=(pa.provider==='openai')?true:((w.err&&w.err!=='None')||(w.acc!=null&&w.acc<70));
     if(bad && w.w && !sessionWeakWords.includes(w.w)) sessionWeakWords.push(w.w);
   });
+}
+function blobToBase64(blob){ return new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>{ const s=(r.result||'').toString(); const i=s.indexOf(','); resolve(i>=0?s.slice(i+1):s); }; r.onerror=reject; r.readAsDataURL(blob); }); }
+// OpenAIの音声対応モデル(gpt-audio)で発音を評価（Azure不要・ブラウザから直接）
+async function assessPronunciationOpenAI(recBlob, referenceText){
+  const okey=$('openaiKey').value.trim();
+  if(!okey){ lastPronError='OpenAIキーが未設定です'; return null; }
+  let wavBlob;
+  try{ wavBlob=await blobToWav(recBlob); }
+  catch(e){ lastPronError='音声の変換に失敗: '+String((e&&e.message)||e); return null; }
+  let b64; try{ b64=await blobToBase64(wavBlob); }catch(e){ lastPronError='音声データの変換に失敗'; return null; }
+  const sys='あなたは日本人学習者の英語発音コーチです。学習者の発話音声を聴き、狙った英文と比べて発音を評価します。必ず次のJSONのみで返してください（他の文章は不要）：{"score":0〜100の整数,"summary":"日本語で全体講評を1〜2文","words":[{"w":"直したい単語(英語)","note":"日本語で具体的な発音の指摘"}]}。wordsは問題のあった単語を0〜4個。うまく聞き取れない時はscoreを低めにしsummaryでその旨を述べる。JSON以外は一切出力しないこと（前置き・説明文・コードブロックも禁止）。';
+  const usr=[{type:'text',text:'狙った英文: "'+(referenceText||'')+'"。この音声の発音を上記JSONで評価してください。'},{type:'input_audio',input_audio:{data:b64,format:'wav'}}];
+  try{
+    const res=await fetchRetry('https://api.openai.com/v1/chat/completions',{
+      method:'POST', headers:{'content-type':'application/json','Authorization':'Bearer '+okey},
+      body:JSON.stringify({ model:'gpt-audio', modalities:['text'], messages:[{role:'system',content:sys},{role:'user',content:usr}] })
+    });
+    if(!res.ok){ lastPronError='OpenAI音声 '+res.status+': '+(await res.text()).slice(0,120); return null; }
+    const data=await res.json();
+    const txt=((((data.choices||[])[0]||{}).message)||{}).content||'';
+    let obj=null; try{ obj=JSON.parse(txt); }catch(e){}
+    if(!obj){ const m=txt.replace(/```json|```/gi,'').match(/\{[\s\S]*\}/); if(m){ try{ obj=JSON.parse(m[0]); }catch(e){} } }
+    if(obj){
+      let score=Math.round(Number(obj.score)); if(isNaN(score)) score=null;
+      const words=(Array.isArray(obj.words)?obj.words:[]).map(x=>({w:(x.w||'').toString(), note:(x.note||'').toString()})).filter(x=>x.w);
+      return { provider:'openai', score, summary:(obj.summary||'').toString(), words };
+    }
+    if(txt && txt.trim()) return { provider:'openai', score:null, summary:txt.trim().slice(0,300), words:[] };
+    lastPronError='評価を取得できませんでした'; return null;
+  }catch(e){ lastPronError='OpenAI音声エラー: '+String((e&&e.message)||e); return null; }
 }
 
 // ---- ボタン ----
@@ -939,7 +999,7 @@ function makeDrill(word){
   recBtn.onclick=async()=>{
     if(drillState==='recording'){ drillState='processing'; recBtn.textContent='⏳ 採点中...'; try{drillRec.stop();}catch(e){} return; }
     if(drillState!=='idle') return;
-    if(!azureReady()){ res.innerHTML='<span class="ph">発音採点にはAzureの設定が必要です。</span>'; return; }
+    if(!$('openaiKey').value.trim()){ res.innerHTML='<span class="ph">発音採点にはOpenAIキーが必要です（設定）。</span>'; return; }
     let stream; try{ stream=await ensureStream(); }catch(e){ res.textContent='マイクを使用できません'; return; }
     drillChunks=[]; const m=pickMime();
     try{ drillRec=new MediaRecorder(stream, m?{mimeType:m}:undefined); }catch(e){ drillRec=new MediaRecorder(stream); }
@@ -947,7 +1007,7 @@ function makeDrill(word){
     drillRec.onstop=async()=>{
       const blob=new Blob(drillChunks,{type:(drillRec&&drillRec.mimeType)||'audio/webm'});
       releaseMic();
-      let pa=null; try{ pa=await assessPronunciation(blob, word); }catch(e){}
+      let pa=null; try{ pa=await assessPronunciationOpenAI(blob, word); }catch(e){}
       drillState='idle'; recBtn.textContent='🎤 もう一度';
       renderDrillResult(res, word, pa);
     };
@@ -957,8 +1017,9 @@ function makeDrill(word){
   return box;
 }
 function renderDrillResult(res, word, pa){
-  let acc=pa?pa.accuracy:null;
-  if(pa&&pa.words&&pa.words.length){ const w=pa.words.find(x=>x.w&&x.w.toLowerCase()===word.toLowerCase())||pa.words[0]; if(w&&w.acc!=null) acc=w.acc; }
+  let acc=null;
+  if(pa){ acc=(pa.provider==='openai')?pa.score:pa.accuracy; }
+  if(pa&&pa.provider!=='openai'&&pa.words&&pa.words.length){ const w=pa.words.find(x=>x.w&&x.w.toLowerCase()===word.toLowerCase())||pa.words[0]; if(w&&w.acc!=null) acc=w.acc; }
   const v=acc!=null?Math.round(acc):null, col=scoreColor(v);
   let html='';
   if(v!=null){
@@ -967,6 +1028,7 @@ function renderDrillResult(res, word, pa){
   }else{
     html+='<div class="ph" style="margin-bottom:6px">うまく採点できませんでした。もう一度どうぞ。</div>';
   }
+  if(pa&&pa.provider==='openai'&&pa.summary){ html+='<div style="font-size:13px;color:var(--muted);margin-top:4px">'+escapeHtml(pa.summary)+'</div>'; }
   html+='<div class="drow" style="margin-top:6px"><button class="btn-ghost btn-sm dmodel2">🔊 お手本</button></div>';
   res.innerHTML=html;
   res.querySelector('.dmodel2').onclick=()=>speak(word,null,0.7);
@@ -1071,15 +1133,20 @@ async function askAboutRally(i,q){
 // 発音スコアのバー（保持済みのpaデータから描くだけ＝軽い）
 function pronBarsHTML(pa){
   if(!pa){
-    let why;
-    if(!window.SpeechSDK) why='Azureの音声SDKが読み込めていません（通信環境や拡張機能のブロックの可能性）。';
-    else if(!($('azureKey').value.trim()&&$('azureRegion').value.trim())) why='Azureのキー/リージョンが未設定です。';
-    else if(lastPronError) why='Azure発音採点のエラー: '+escapeHtml(String(lastPronError).slice(0,160))+'（無料枠5時間の超過やキー無効の可能性）';
-    else why='この発話は音声が短い、または採点データを取得できませんでした。';
+    const why = lastPronError ? ('発音評価のエラー: '+escapeHtml(String(lastPronError).slice(0,160))) : 'この発話は音声が短い、または評価データを取得できませんでした。';
     return '<div class="hint" style="margin:0">'+why+'</div>';
   }
+  if(pa.provider==='openai'){
+    let html='';
+    if(pa.score!=null){ const v=Math.max(0,Math.min(100,pa.score)); const col=scoreColor(v);
+      html+='<div class="scrow"><span class="scl">発音</span><span class="scbar"><span class="scfill" style="width:'+v+'%;background:'+col+'"></span></span><span class="scv" style="color:'+col+'">'+v+'</span></div>'; }
+    if(pa.summary) html+='<div style="font-size:14px;margin:6px 0">'+escapeHtml(pa.summary)+'</div>';
+    if(pa.words&&pa.words.length){ pa.words.forEach(w=>{ html+='<div style="font-size:13px;margin-top:4px"><span class="wchip">'+escapeHtml(w.w)+'</span> '+escapeHtml(w.note||'')+'</div>'; }); }
+    else if(pa.score!=null){ html+='<div class="weak" style="color:#0c7a54">🌟 大きな問題は見つかりませんでした！</div>'; }
+    return '<div class="fb pron" style="margin:0">'+html+'</div>';
+  }
   const rows=[['総合',pa.pron],['正確さ',pa.accuracy],['流暢さ',pa.fluency],['抑揚',pa.prosody],['完全性',pa.completeness]].filter(r=>r[1]!=null);
-  if(!rows.length) return '<div class="hint" style="margin:0">発音採点データを取得できませんでした。</div>';
+  if(!rows.length) return '<div class="hint" style="margin:0">評価データを取得できませんでした。</div>';
   const bars=rows.map(r=>{ const v=Math.round(r[1]); return '<div class="scrow"><span class="scl">'+r[0]+'</span>'+
     '<span class="scbar"><span class="scfill" style="width:'+v+'%;background:'+scoreColor(v)+'"></span></span>'+
     '<span class="scv" style="color:'+scoreColor(v)+'">'+v+'</span></div>'; }).join('');
@@ -1115,11 +1182,7 @@ function attachRallyQA(cc, i){
         log=rq.querySelector('.rq-log'), ta=rq.querySelector('.rq-in'),
         askBtn=rq.querySelector('.rq-ask'), mic=rq.querySelector('.rq-mic');
   toggle.onclick=()=>{ const hid=body.classList.toggle('hidden'); toggle.textContent=hid?'💬 このラリーを質問':'✖ 質問を閉じる'; if(!hid){ try{ta.focus();}catch(e){} } };
-  mic.onclick=()=>{
-    if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
-    mic.textContent='🔴 話して...'; mic.disabled=true;
-    recognizeJa(t=>{ mic.textContent='🎤 音声'; mic.disabled=false; if(t){ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} } });
-  };
+  mic.onclick=()=>{ jaMicToggle(mic, t=>{ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} }); };
   const ask=async()=>{
     const q=(ta.value||'').trim(); if(!q) return; ta.value=''; askBtn.disabled=true;
     const qEl=document.createElement('div'); qEl.className='msg user'; qEl.style.margin='0 0 8px';
@@ -1149,12 +1212,7 @@ function makeQACard(){
       '<div style="flex:1"><button class="btn-primary qask" style="width:100%">質問する</button></div>'+
     '</div>';
   const log=card.querySelector('.qalog'), ta=card.querySelector('.qain'), btn=card.querySelector('.qask'), mic=card.querySelector('.qamic');
-  mic.onclick=()=>{
-    if(!azureReady()){ alert('音声入力にはAzureの設定が必要です（設定でキーとリージョンを入力）。'); return; }
-    mic.textContent='🔴 話してください...'; mic.disabled=true;
-    recognizeJa(t=>{ mic.textContent='🎤 音声で入力'; mic.disabled=false;
-      if(t){ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} } });
-  };
+  mic.onclick=()=>{ jaMicToggle(mic, t=>{ ta.value=(ta.value?ta.value+' ':'')+t; try{ta.focus();}catch(e){} }); };
   const ask=async()=>{
     const q=(ta.value||'').trim(); if(!q) return;
     ta.value=''; btn.disabled=true;
@@ -1179,6 +1237,16 @@ function makeQACard(){
 
 // ===== 練習履歴（端末内localStorageに保存＝軽い） =====
 function getHistory(){ try{ return JSON.parse(localStorage.getItem('te_history')||'[]'); }catch(e){ return []; } }
+function getNotebook(){ try{ return JSON.parse(localStorage.getItem('te_notebook')||'[]'); }catch(e){ return []; } }
+function nbKey(original,better){ return normBetter(original)+'|'+normBetter(better); }
+function saveToNotebook(c,t){
+  const nb=getNotebook(); const key=nbKey(c.original||'', c.better||''); const now=fmtDate(new Date());
+  let e=nb.find(x=>x.key===key);
+  if(e){ e.count=(e.count||1)+1; e.lastDate=now; }
+  else { nb.unshift({ key, original:c.original||'', better:c.better||'', better2:c.better2||'', ja:c.ja||'', comment:c.comment||'', q_en:(t&&t.q_en)||'', q_ja:(t&&t.q_ja)||'', count:1, firstDate:now, lastDate:now }); }
+  localStorage.setItem('te_notebook', JSON.stringify(nb)); return e?e.count:1;
+}
+function delNotebook(key){ const nb=getNotebook().filter(x=>x.key!==key); localStorage.setItem('te_notebook', JSON.stringify(nb)); }
 function fmtDate(d){ const p=n=>('0'+n).slice(-2); return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
 function saveSession(sum){
   try{
@@ -1223,6 +1291,26 @@ function mistakeRow(m, betterCount){
   if(mt){ const mm=row.querySelector('.more'); mt.onclick=()=>{ const hid=mm.classList.toggle('hidden'); mt.textContent=hid?'▾ 詳細':'▴ 閉じる'; }; }
   return row;
 }
+function renderNotebook(box){
+  const nb=getNotebook();
+  const card=document.createElement('div'); card.className='card sys';
+  let h='<h4 style="margin:0 0 6px;color:var(--coral2)">📌 覚えるノート（手動保存）</h4>';
+  if(!nb.length){ h+='<div class="hint" style="margin-top:0">添削画面の「📌 覚えるノートに保存」で、間違えた言い方とおすすめを保存できます。同じものを保存するたび回数（＝間違えた回数）が増えます。</div>'; card.innerHTML=h; box.appendChild(card); return; }
+  const items=nb.slice().sort((a,b)=>(b.count||1)-(a.count||1));
+  h+='<div class="hint" style="margin-top:0">回数が多い＝よく間違える言い方です。</div><div class="nbwrap" style="margin-top:8px"></div>';
+  card.innerHTML=h; const wrap=card.querySelector('.nbwrap');
+  items.forEach(e=>{
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="meta"><span>'+escapeHtml(e.lastDate||'')+'</span><span><span class="tag" style="background:#ffe0d8;color:#c23a1f">×'+(e.count||1)+'回</span> <button class="speak nb-del">🗑</button></span></div>'+
+      '<div class="you">🗣 '+escapeHtml(e.original)+'</div>'+
+      '<div class="rec">✅ '+escapeHtml(e.better)+' <button class="speak nb-say">🔊</button></div>'+
+      (e.comment?'<div class="cmt" style="margin-top:4px">💬 '+escapeHtml(e.comment)+'</div>':'');
+    row.querySelector('.nb-say').onclick=()=>speak(e.better||'');
+    row.querySelector('.nb-del').onclick=()=>{ if(confirm('この項目を覚えるノートから削除しますか？')){ delNotebook(e.key); renderReview(); } };
+    wrap.appendChild(row);
+  });
+  box.appendChild(card);
+}
 function renderReview(){
   const hist=getHistory();
   const box=$('reviewHome'); box.innerHTML='';
@@ -1232,6 +1320,7 @@ function renderReview(){
     '<button class="btn-ghost btn-sm rv-close">✖ 閉じる</button></div>';
   box.appendChild(card);
   card.querySelector('.rv-close').onclick=closeReview;
+  renderNotebook(box);
   if(!hist.length){
     const e=document.createElement('div'); e.className='hint'; e.style.margin='10px 2px'; e.textContent='まだ履歴がありません。会話を1回終えると、ここに間違いや弱点がたまっていきます。';
     card.appendChild(e);
@@ -1352,10 +1441,12 @@ function renderSummary(sum){
         '<div class="corr-rec"><span class="corr-tag rec">✅ おすすめの言い方</span>'+
           '<div class="en">① '+escapeHtml(c.better)+' <button class="speak sp1">🔊</button></div><div class="ja">'+escapeHtml(c.ja||'')+'</div>'+
           (c.better2?'<div class="en" style="margin-top:6px">② '+escapeHtml(c.better2)+' <button class="speak sp2">🔊</button></div><div class="ja">'+escapeHtml(c.ja2||'')+'</div>':'')+
-        '</div>';
+        '</div>'+
+        '<div style="margin-top:8px"><button class="btn-ghost btn-sm nb-save">📌 覚えるノートに保存</button></div>';
       const qb=cc.querySelector('.qspk'); if(qb) qb.onclick=()=>speak(t.q_en||'');
       const sp1=cc.querySelector('.sp1'); if(sp1) sp1.onclick=()=>speak(c.better||'');
       const sp2=cc.querySelector('.sp2'); if(sp2) sp2.onclick=()=>speak(c.better2||'');
+      const nb=cc.querySelector('.nb-save'); if(nb){ nb.onclick=()=>{ const cnt=saveToNotebook(c,t); nb.textContent='📌 保存済み（×'+cnt+'）'; nb.disabled=true; }; }
       attachPronScore(cc, i);
       attachRallyQA(cc, i);
       wrap.appendChild(cc);
